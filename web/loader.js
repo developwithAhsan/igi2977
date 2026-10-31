@@ -47,11 +47,19 @@ function errorMessage(error, fallback = 'The browser stopped the operation witho
 const show = (view) => { for (const v of document.querySelectorAll('#panel .view')) v.classList.toggle('hidden', v.id !== 'view-' + view); };
 const fail = (error) => {
   const message = errorMessage(error, 'Unknown error while starting the game.');
+  const gpuStartupFailure = /webgpu|gpu adapter|requestadapter|requestdevice|gpu device|graphics adapter|no adapter|adapter.*found|device.*lost/i.test(message);
   console.error('Game startup failed:', error);
   hideBoot();
   document.body.classList.remove('playing');
-  status('Game could not start: ' + message);
   $('panel').classList.remove('hidden');
+  if (gpuStartupFailure) {
+    // Unsupported/lost graphics should not turn the import/launcher screen into an error page.
+    // The launch was attempted; keep the imported files and let the player try again later.
+    $('crashnote')?.classList.add('hidden');
+    show('home');
+    return;
+  }
+  status('Game could not start: ' + message);
   show('loading');
 };
 const mb = (n) => (n / 1e6).toFixed(0);
@@ -1213,33 +1221,8 @@ function followGate(next) {
 }
 
 async function boot() {
-  // Check graphics compatibility without blocking the game-file import/download screen.
-  // Low-power is tried first for integrated and entry-level GPUs; software fallback is last.
-  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const needHint = isIOS
-    ? 'On iPhone or iPad this needs iOS 26 or later, opened in Safari. Please update iOS and try again.'
-    : 'Please use an up-to-date Chrome or Edge (Android or desktop), or Safari 26+ on Apple devices.';
-  let graphicsProblem = '';
-  if (!crossOriginIsolated) {
-    graphicsProblem = 'This browser is missing a required security feature (cross-origin isolation). ' + needHint;
-  } else if (!navigator.gpu) {
-    graphicsProblem = 'This browser does not expose WebGPU graphics support. ' + needHint;
-  } else {
-    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'low-power' }).catch(() => null) ||
-      await navigator.gpu.requestAdapter().catch(() => null) ||
-      await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null) ||
-      await navigator.gpu.requestAdapter({ forceFallbackAdapter: true }).catch(() => null);
-    if (!adapter) {
-      const firefox = /Firefox\//.test(navigator.userAgent);
-      graphicsProblem = 'No usable graphics adapter was found. ' +
-        (firefox ? 'Firefox only enables WebGPU for some GPUs and drivers (see about:support, "WebGPU"); try current Chrome or Edge. '
-          : 'Turn on browser hardware acceleration and update the graphics driver if possible. ') +
-        'This device may still let you import the game files, but gameplay needs a working WebGPU adapter.';
-    } else if (adapter.isFallbackAdapter || adapter.info?.isFallbackAdapter) {
-      console.warn('WebGPU: only a software (fallback) adapter is available; the game may run slowly');
-    }
-  }
+  // Do not preflight WebGPU or block Play. Try to launch the real game first;
+  // the engine itself will initialize graphics and report a failure only if it cannot proceed.
   const storageAvailable = !!navigator.storage?.getDirectory;
   let onlineReady = false;
   const goOnline = () => {
@@ -1250,31 +1233,14 @@ async function boot() {
   const ready = () => {
     show('home');
     crashCheck();
-    if (graphicsProblem) {
-      const note = $('crashnote');
-      note.textContent = 'Your game files are ready. ' + graphicsProblem + ' You can change or import your game folder below; gameplay will start once this device/browser has compatible graphics support.';
-      note.classList.remove('hidden');
-      $('play').disabled = true;
-      $('play').title = 'A compatible WebGPU graphics adapter is required to play';
-      $('reset').textContent = 'Choose / change game folder';
-    } else {
-      $('play').disabled = false;
-      $('play').removeAttribute('title');
-    }
-    if (params.get('join') && !graphicsProblem) goOnline();   // an invite link goes straight to joining
-    if (params.has('autoplay') && !graphicsProblem) $('play').click();
+    // Game launch is always attempted; the engine decides whether graphics can initialize.
+    $('play').disabled = false;
+    $('play').removeAttribute('title');
+    if (params.get('join')) goOnline();
+    if (params.has('autoplay')) $('play').click();
   };
   migratePreset(!!(await readMarker()));   // the keyboard layout for players from before the layouts existed
-  $('play').onclick = () => {
-    if (graphicsProblem) {
-      const note = $('crashnote');
-      note.textContent = 'The game cannot start on this graphics adapter yet. Your imported game files are safe. ' + graphicsProblem;
-      note.classList.remove('hidden');
-      show('home');
-      return;
-    }
-    followGate(() => run().catch(fail));
-  };
+  $('play').onclick = () => followGate(() => run().catch(fail));
   $('go-online').onclick = () => followGate(goOnline);
   for (const b of document.querySelectorAll('[data-go]')) b.onclick = () => show(b.dataset.go);
   const handlePickedFiles = async (input) => {
