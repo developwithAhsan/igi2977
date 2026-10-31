@@ -1324,8 +1324,7 @@ async function boot() {
       $('download').textContent = 'Download game automatically';
       $('download').classList.remove('hidden');
     }
-    showPicker((graphicsProblem ? 'Graphics compatibility warning: ' + graphicsProblem + ' ' : '') +
-      'Choose your Project I.G.I. folder or select your game files. You can also use the download button.');
+    showPicker('Choose your Project I.G.I. folder or select your game files. You can also use the download button.');
     return;
   }
   if (hosted) await refreshConfig(hosted);
