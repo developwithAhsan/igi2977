@@ -61,6 +61,26 @@ const fail = (error) => {
   }
   status('Game could not start: ' + message);
   show('loading');
+  if (/compiled game engine is missing or could not be loaded/i.test(message)) {
+    let fallback = $('engine-fallback');
+    if (!fallback) {
+      fallback = document.createElement('div');
+      fallback.id = 'engine-fallback';
+      fallback.className = 'home-import-actions';
+      const note = document.createElement('p');
+      note.className = 'home-import-help';
+      note.textContent = 'This player deployment is missing its compiled engine. OpenIGI is a separate browser reimplementation, not this site’s engine; it may ask you to choose your own game folder.';
+      const link = document.createElement('a');
+      link.className = 'btn home-import-btn';
+      link.href = 'https://openigi.com/';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Try the OpenIGI browser player';
+      link.setAttribute('aria-label', 'Open the independent OpenIGI browser player in a new tab');
+      fallback.append(note, link);
+      $('status').insertAdjacentElement('afterend', fallback);
+    }
+  }
 };
 const mb = (n) => (n / 1e6).toFixed(0);
 
