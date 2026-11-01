@@ -237,7 +237,7 @@ async function readMarker() {
 
 async function writeMarker(version) {
   const fh = await (await gameDir(true)).getFileHandle(MARKER, { create: true });
-  const w = await fh.createWritable();
+  const w = await openWriter(fh, OPFS_DIR + '/' + MARKER);
   await w.write(JSON.stringify({ version, at: new Date().toISOString() }));
   await w.close();
 }
@@ -247,6 +247,71 @@ async function fileHandle(dir, relPath, create) {
   for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create });
   return dir.getFileHandle(parts[parts.length - 1], { create });
 }
+
+function opfsWriterWorker() {
+  const open = new Map();   // id -> { h, at }
+  const run = async (m) => {
+    if (m.op === 'open') {
+      let dir = await navigator.storage.getDirectory();
+      const parts = m.path.split('/');
+      for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create: true });
+      const h = await (await dir.getFileHandle(parts[parts.length - 1], { create: true })).createSyncAccessHandle();
+      await h.truncate(0);   // Safari 15-16: these return promises; later ones return at once (await is harmless)
+      open.set(m.id, { h, at: 0 });
+      return;
+    }
+    const s = open.get(m.id);
+    if (!s) throw new Error('file not open');
+    if (m.op === 'write') {
+      let d = m.data;
+      if (typeof d === 'string') d = new TextEncoder().encode(d);
+      if (d instanceof Blob) {   // a picked file: in pieces, not all of it in memory at once
+        for (let o = 0; o < d.size; o += 4 << 20) {
+          const piece = new Uint8Array(await d.slice(o, o + (4 << 20)).arrayBuffer());
+          s.at += await s.h.write(piece, { at: s.at });
+        }
+      } else s.at += await s.h.write(d, { at: s.at });
+      return;
+    }
+    open.delete(m.id);   // close or abort: release the file either way (a held handle locks it)
+    try { if (m.op === 'close') await s.h.flush(); } finally { await s.h.close(); }
+  };
+  onmessage = (e) => run(e.data).then(() => postMessage({ seq: e.data.seq }),
+    (err) => postMessage({ seq: e.data.seq, err: (err && err.name || 'Error') + ': ' + (err && err.message || err) }));
+}
+let opfsWorker = null, opfsSeq = 0;
+const opfsWaiting = new Map();
+function opfsCall(m, transfer) {
+  if (!opfsWorker) {
+    opfsWorker = new Worker(URL.createObjectURL(new Blob(['(' + opfsWriterWorker.toString() + ')()'], { type: 'text/javascript' })));
+    opfsWorker.onmessage = (e) => {
+      const p = opfsWaiting.get(e.data.seq);
+      opfsWaiting.delete(e.data.seq);
+      if (p) e.data.err ? p.no(new Error(e.data.err)) : p.ok();
+    };
+  }
+  return new Promise((ok, no) => {
+    m.seq = ++opfsSeq;
+    opfsWaiting.set(m.seq, { ok, no });
+    opfsWorker.postMessage(m, transfer || []);
+  });
+}
+const noWritable = params.has('nowritable');
+async function openWriter(fh, path) {
+  if (!noWritable && typeof fh.createWritable === 'function') {
+    const w = await fh.createWritable();
+    return { write: (d) => w.write(d), close: () => w.close(), abort: () => w.abort().catch(() => {}) };
+  }
+  const id = ++opfsSeq;
+  await opfsCall({ op: 'open', id, path });
+  return {
+    write: (d) => opfsCall({ op: 'write', id, data: d },
+      d instanceof Uint8Array && d.byteOffset === 0 && d.byteLength === d.buffer.byteLength ? [d.buffer] : []),
+    close: () => opfsCall({ op: 'close', id }),
+    abort: () => opfsCall({ op: 'abort', id }).catch(() => {}),
+  };
+}
+
 
 // installer leftovers the game never reads: not worth copying into the browser
 const SKIP = /^(directx[^/]*\/|.*\.(mp4|ds_store)$)|(^|\/)\.DS_Store$/i;
@@ -302,7 +367,8 @@ async function importFromPicker(fileList) {
   $('progress').value = 0;
   for (const e of list) {
     status('Copying ' + e.dest + ' (' + mb(done) + ' / ' + mb(total) + ' MB)');
-    const w = await (await fileHandle(dir, e.dest, true)).createWritable();
+    const fh = await fileHandle(dir, e.dest, true);
+    const w = await openWriter(fh, OPFS_DIR + '/' + e.dest);
     try {
       await w.write(e.f);
       await w.close();
@@ -399,7 +465,7 @@ async function importFromServerInner(list) {
     try {
       const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/'), { cache: 'no-store', signal: ac.signal });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const w = await fh.createWritable();
+      const w = await openWriter(fh, OPFS_DIR + '/' + e.path);
       const reader = r.body.getReader();
       let wrote = 0;
       for (;;) {
@@ -1344,7 +1410,7 @@ async function refreshConfig(list) {
     if (!r.ok) return;
     const buf = await r.arrayBuffer();
     if (buf.byteLength !== e.size) return;
-    const w = await (await fileHandle(await gameDir(true), e.path, true)).createWritable();
+    const w = await openWriter(await fileHandle(await gameDir(true), e.path, true), OPFS_DIR + '/' + e.path);
     await w.write(buf); await w.close();
   } catch (err) { console.warn('config.qvm refresh skipped:', err.message); }
 }
