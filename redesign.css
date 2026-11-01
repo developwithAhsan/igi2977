@@ -898,3 +898,19 @@ html body #kbd.is-open{
   opacity:1!important;
   pointer-events:auto!important;
 }
+
+
+/* The touch loader wires this control during boot; expose it only on touch/coarse devices. */
+#boot-controls{
+  display:none;
+  min-height:40px;
+  margin:14px auto 0;
+  padding:9px 14px;
+  font-size:13px;
+}
+body.coarse #boot-controls,
+body.touch #boot-controls{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
