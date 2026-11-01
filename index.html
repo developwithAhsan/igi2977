@@ -55,8 +55,15 @@
       </span>
       <span class="igi-launch-agent">AGENT: JONES</span>
     </button>
-    <iframe class="igi-game-frame" id="igi-game-frame" title="Project I.G.I. game" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="eager"></iframe>
-    <p class="igi-game-loading" id="igi-game-loading" hidden aria-live="polite">CONNECTING TO MISSION SERVER...</p>
+    <iframe class="igi-game-frame" id="igi-game-frame" title="Project I.G.I. game" allow="fullscreen; autoplay; gamepad; pointer-lock; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="eager"></iframe>
+    <div class="igi-game-loading" id="igi-game-loading" hidden role="status" aria-live="polite">
+      <div class="igi-loader-kicker">LOADING.PIC // FIELD SYSTEM</div>
+      <div class="igi-loader-line">&gt; CONNECTING TO MISSION SERVER<span class="igi-launch-cursor" aria-hidden="true">_</span></div>
+      <div class="igi-loader-detail" id="igi-loader-detail"> &gt; LOADING MISSION FILES...</div>
+      <div class="igi-loader-progress" aria-hidden="true"><span></span></div>
+      <div class="igi-loader-agent">AGENT: JONES</div>
+      <button class="igi-loader-retry" id="igi-loader-retry" type="button" hidden>↻ RETRY CONNECTION</button>
+    </div>
   </section>
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="home-content">
