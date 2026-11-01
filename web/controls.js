@@ -52,6 +52,7 @@ const RcControls = (() => {
     gyroInvY: false,    // gyroscope: tilt the phone up to look down (some players want it, as in flight games)
     gyroInvX: false,    // and turn left to look right
     wide: true,         // widescreen: the 3D world fills the whole screen (host rc_set_wide); false = 4:3 letterboxed
+    subs: true,         // large subtitles: the game's speech read back from its tiny font (host/subtitle.c) in a caption
   };
   let S = load();
   function load() {
@@ -61,13 +62,17 @@ const RcControls = (() => {
     for (const k of ['mouseSens', 'look', 'scopeSens', 'scopeZoom', 'gyroSens']) if (typeof saved[k] === 'number' && saved[k] > 0) s[k] = saved[k];
     if (['off', 'on', 'scope'].includes(saved.gyro)) s.gyro = saved.gyro;
     if (typeof saved.wide === 'boolean') s.wide = saved.wide;
-    for (const k of ['gyroInvY', 'gyroInvX']) if (typeof saved[k] === 'boolean') s[k] = saved[k];
+    for (const k of ['gyroInvY', 'gyroInvX', 'subs']) if (typeof saved[k] === 'boolean') s[k] = saved[k];
     if (saved.mouse) for (const b of [0, 1, 2]) if (ACTIONS[saved.mouse[b]]) s.mouse[b] = saved.mouse[b];
     return s;
   }
   function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch { /* storage blocked */ } }
   const get = () => S;
-  function set(k, v) { S[k] = v; save(); if (k === 'gyro') gyroApply(); if (k === 'wide') wideApply(); }
+  function set(k, v) {
+    S[k] = v; save(); if (k === 'gyro') gyroApply();
+    // the player's own choice of screen: the loader starts the game in widescreen display modes by it (COHORT)
+    if (k === 'wide') { try { localStorage.setItem('igi-wide-choice', v ? '1' : '0'); } catch { /* storage blocked */ } wideApply(); }
+  }
   const wideApply = () => { if (M && M._rc_set_wide) M._rc_set_wide(S.wide ? 1 : 0); };
   function setMouse(button, action) { S.mouse[button] = ACTIONS[action] ? action : 'none'; save(); }
   function reset() { S = { ...DEFAULTS, mouse: { ...DEFAULTS.mouse } }; save(); gyroApply(); wideApply(); }
@@ -149,11 +154,16 @@ const RcControls = (() => {
   // binoculars instead (the game toggles them on each press of their key) and zooms through those; the next
   // tap zooms back out and puts them away. A player who raised the scope or the binoculars themselves gets
   // the same taps.
-  let viaBino = false, viaScope = false, wait = 0;
+  let viaBino = false, viaScope = false, wait = 0, zoomPress = 0, zoomFrom = 1, lastToggle = 0;
   const later = (ms, f) => { wait = setTimeout(() => { wait = 0; f(); }, ms); };
   function scopeToggle() {
     if (!inMission()) return;
-    if (wait) { clearTimeout(wait); wait = 0; return; }   // a tap while the last one is still settling
+    // a second tap while the first is still bringing the scope up: ignored (it used to cancel it, which read as a
+    // missed touch to players who tap twice because nothing showed yet)
+    const now = performance.now();
+    if (wait && now - lastToggle < 600) return;
+    if (wait) { clearTimeout(wait); wait = 0; }
+    lastToggle = now;
     if (drive) { driveStop(); return; }   // a tap while it's still zooming: stop where it is
     if (scoped()) {
       if (viaScope) { viaScope = false; tap(ACTIONS.altfire); return; }
@@ -192,8 +202,20 @@ const RcControls = (() => {
     const a = ACTIONS[name];
     if (!a) return;
     if (a.scope) { if (down) scopeToggle(); return; }
+    if (name === 'menu' && down) { try { window.pauseAds?.menuPressed?.(); } catch { /* no ads */ } }
+    // Zoom in / out. The game's zoom keys only work with the scope or binoculars up, and zoom while held: a quick
+    // tap moved the view a barely visible amount and + without a scope did nothing, both felt like a missed touch
+    // (2026-10-31). Now + without a scope raises it (the scope toggle), a tap steps the zoom 1.6x, a hold zooms on.
     if (name === 'zoomin' || name === 'zoomout') {
-      if (down) { driveStop(); zoomKeyDown(name === 'zoomin' ? 1 : -1); } else zoomKeyUp(name === 'zoomin' ? 1 : -1);
+      const dir = name === 'zoomin' ? 1 : -1;
+      if (down) {
+        if (!scoped()) { zoomPress = 0; if (dir > 0) scopeToggle(); return; }
+        driveStop(); zoomPress = performance.now(); zoomFrom = zoom(); zoomKeyDown(dir);
+      } else if (zoomPress) {
+        const held = performance.now() - zoomPress; zoomPress = 0;
+        if (held < 220 && Math.abs(zoom() - zoomFrom) < 0.25 * zoomFrom) zoomTo(dir > 0 ? zoomFrom * 1.6 : Math.max(1.05, zoomFrom / 1.6), null, 500);
+        else zoomKeyUp(dir);
+      }
       return;
     }
     if (down && (name === 'nextweapon' || name === 'prevweapon')) weaponChanged();
