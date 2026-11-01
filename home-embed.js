@@ -85,6 +85,8 @@
     if (Number.isFinite(height) && height > 0) {
       var clamped = Math.max(window.innerHeight, Math.min(12000, height));
       stage.style.height = clamped + "px";
+      stage.style.maxHeight = "none";
+      stage.style.aspectRatio = "auto";
       game.style.height = "100%";
     }
   });
