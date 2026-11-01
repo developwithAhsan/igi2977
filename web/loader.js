@@ -1147,6 +1147,34 @@ async function run(session) {
   // display would halve both. Solo play follows the display. A frame is due every 1/60 s, with a little
   // tolerance so a 60 Hz display's own jitter doesn't skip one.
   let due = 0, booted = false, shownFrames = 0, lastPresent = 0, loading = false;
+  // Detect a renderer that keeps presenting completely black frames. After a sustained black picture,
+  // remember WebGL2 for this browser and restart once in that renderer (never before Play).
+  const pic = { el: null, cx: null, lit: 0, samples: 0, until: 0, done: false, f: 0 };
+  const picCheck = () => {
+    if (pic.done || ++pic.f % 15) return;
+    try {
+      if (!pic.el) { pic.el = document.createElement('canvas'); pic.el.width = 16; pic.el.height = 12; pic.cx = pic.el.getContext('2d', { willReadFrequently: true }); }
+      if (!pic.cx) { pic.done = true; return; }
+      pic.cx.clearRect(0, 0, 16, 12);
+      pic.cx.drawImage($('canvas'), 0, 0, 16, 12);
+      const pixels = pic.cx.getImageData(0, 0, 16, 12).data;
+      let lit = 0;
+      for (let i = 0; i < pixels.length; i += 4) if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 24) lit++;
+      pic.samples++; pic.lit = Math.max(pic.lit, lit);
+    } catch (err) { pic.done = true; console.warn('picture check unavailable:', err.message); return; }
+    if (pic.lit >= 4) { pic.done = true; return; }
+    if (!pic.until) pic.until = performance.now() + 20000;
+    if (performance.now() < pic.until || session) return;
+    pic.done = true;
+    if (window.RC_RENDERER !== 'gl' && webgl2Available()) {
+      try { localStorage.setItem('igi-renderer-gl', String(Date.now())); } catch { /* storage blocked; this retry still runs */ }
+      status('The game picture is not appearing. Switching to the compatible graphics mode…');
+      const url = new URL(location.href);
+      url.searchParams.set('renderer', 'gl');
+      url.searchParams.set('autoplay', '1');
+      setTimeout(() => location.replace(url.href), 500);
+    }
+  };
   const frame = (t) => {
     poll(M);
     if (!session || t >= due - 4) {
@@ -1154,6 +1182,7 @@ async function run(session) {
       if (n) {
         due = Math.max(due + 1000 / 60, t - 4);
         lastPresent = t;
+        if (booted && !pic.done) picCheck();
         // Drop the boot cover only once the game is actually STREAMING frames (its menu/mission is up), not
         // on the first frame: while the game loads a cold install it submits nothing for up to ~2 minutes,
         // then a stray clear-frame, then the real render loop. Counting to a couple dozen frames waits for
