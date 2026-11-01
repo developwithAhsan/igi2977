@@ -1058,23 +1058,24 @@ function webgl2Available() {
   catch { return false; }
 }
 async function chooseRendererForLaunch() {
-  const forced = params.get('renderer');
-  if (forced === 'gl') return webgl2Available() ? 'gl' : 'gpu';
-  if (!params.has('renderer')) {
-    try { if (localStorage.getItem('igi-renderer-gl') && webgl2Available()) return 'gl'; } catch { /* storage blocked */ }
+  // The published compatible engine build includes WebGPU only; it has no WebGL renderer.
+  // Ignore a stale WebGL preference left by a previous engine version.
+  try { localStorage.removeItem('igi-renderer-gl'); } catch { /* storage blocked */ }
+  if (!navigator.gpu || typeof navigator.gpu.requestAdapter !== 'function') {
+    throw new Error('This browser engine needs WebGPU. Update Chrome and enable hardware graphics acceleration on your Chromebook, then reload.');
   }
-  if (navigator.gpu && typeof navigator.gpu.requestAdapter === 'function') {
-    try {
-      let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
-      if (!adapter) adapter = await navigator.gpu.requestAdapter().catch(() => null);
-      if (adapter) { window.RC_RENDERER = 'gpu'; return 'gpu'; }
-    } catch { /* try WebGL2 after the player has pressed Play */ }
+  let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
+  if (!adapter) adapter = await navigator.gpu.requestAdapter().catch(() => null);
+  if (!adapter) {
+    throw new Error('Chrome could not find a WebGPU graphics adapter on this device. Check chrome://settings/system and enable graphics acceleration, then restart Chrome.');
   }
-  return webgl2Available() ? 'gl' : 'gpu';
+  window.RC_RENDERER = 'gpu';
+  return 'gpu';
 }
 
 async function run(session) {
   const audio = newAudioContext();   // first, while the click that called run() is still a user gesture
+  if (session) throw new Error('Online multiplayer is not included in the currently hosted engine build. Start a solo game instead.');
   const touch = !session && RcTouch.wanted();
   if (touch) RcTouch.goFullscreen($('stage'));   // also needs the gesture
   $('panel').classList.add('hidden');
@@ -1088,7 +1089,7 @@ async function run(session) {
   if (session) await clearNetSaves(session);
   sizeCanvas();
   const script = document.createElement('script');
-  script.src = '/build/recomp.js?v=27';
+  script.src = '/build/recomp.js?v=28';
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1131,9 +1132,10 @@ async function run(session) {
     }],
   });
   const canvas = $('canvas');
-  if (window.RC_RENDERER === 'gl') {
-    if (typeof M._rc_gl_init !== 'function' || !M._rc_gl_init(canvas.width, canvas.height)) throw new Error('WebGL 2 could not start in this browser engine build.');
-  } else M._rc_gpu_init(canvas.width, canvas.height);
+  // This published engine build is WebGPU-only. Older saved renderer preferences must not
+  // send it down the optional WebGL path from newer launchers.
+  window.RC_RENDERER = 'gpu';
+  M._rc_gpu_init(canvas.width, canvas.height);
   new ResizeObserver(() => { sizeCanvas(); M._rc_set_canvas_size(canvas.width, canvas.height); }).observe(canvas);
   hookInput(M, !!session);
   subtitles(M, touch);
@@ -1166,13 +1168,18 @@ async function run(session) {
     if (!pic.until) pic.until = performance.now() + 20000;
     if (performance.now() < pic.until || session) return;
     pic.done = true;
-    if (window.RC_RENDERER !== 'gl' && webgl2Available()) {
+    if (typeof M._rc_gl_init === 'function' && window.RC_RENDERER !== 'gl' && webgl2Available()) {
       try { localStorage.setItem('igi-renderer-gl', String(Date.now())); } catch { /* storage blocked; this retry still runs */ }
       status('The game picture is not appearing. Switching to the compatible graphics mode…');
       const url = new URL(location.href);
       url.searchParams.set('renderer', 'gl');
       url.searchParams.set('autoplay', '1');
       setTimeout(() => location.replace(url.href), 500);
+    } else {
+      status('The engine started, but this device is not presenting WebGPU frames. Check Chrome hardware acceleration and reload.');
+      hideBoot();
+      $('panel').classList.remove('hidden');
+      show('loading');
     }
   };
   const frame = (t) => {
