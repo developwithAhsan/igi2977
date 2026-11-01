@@ -109,7 +109,8 @@ body.home-page #sitefoot .copyright{display:flex;flex-wrap:wrap;justify-content:
 @media(max-width:768px) and (orientation:portrait){
   .igi-launch-stage{width:min(100%,calc(85svh * 4 / 5));aspect-ratio:4 / 5;max-height:85svh}
 }
-@media(prefers-reduced-motion:reduce){\n  .igi-loader-progress span{animation:none;transform:none;width:55%}
+@media(prefers-reduced-motion:reduce){
+  .igi-loader-progress span{animation:none;transform:none;width:55%}
   html{scroll-behavior:auto}
   .igi-launch-panel:after{display:none}
   .igi-launch-cursor{animation:none}
