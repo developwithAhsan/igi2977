@@ -33,6 +33,7 @@ function parseRequestedPath(url){
   return value;
 }
 function resolveUpstreamPath(path){
+  const trailingSlash=path.endsWith("/");
   const parts=path.split("/").filter(Boolean);
   let host=PRIMARY_HOST;
   if(parts[0]==="_host"){
@@ -40,7 +41,8 @@ function resolveUpstreamPath(path){
     if(!/^(?:[a-z0-9-]+\.)+playigi\.com$/.test(host))return null;
     parts.splice(0,2);
   }
-  return {host,path:"/"+parts.join("/")};
+  const resolved="/"+parts.join("/");
+  return {host,path:resolved==="/"?"/":resolved+(trailingSlash?"/":"")};
 }
 function proxyPathForUrl(raw){
   let parsed;try{parsed=new URL(raw,"https://"+PRIMARY_HOST);}catch(_){return raw;}
