@@ -75,19 +75,33 @@ function rewriteRootPaths(text,contentType){
 }
 function extractPreloads(html){
   const found=new Set(),candidates=[];
-  [...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi)].slice(0,2)
-    .forEach(m=>candidates.push({href:m[1],as:"style"}));
-  [...html.matchAll(/<script\b[^>]*src=["']([^"']+)["'][^>]*>/gi)].slice(0,2)
-    .forEach(m=>candidates.push({href:m[1],as:"script"}));
-  [...html.matchAll(/<link\b[^>]*rel=["']preload["'][^>]*as=["']font["'][^>]*href=["']([^"']+)["'][^>]*>/gi)].slice(0,2)
-    .forEach(m=>candidates.push({href:m[1],as:"font",cross:true}));
-  const image=html.match(/<img\b[^>]*src=["']([^"']+)["'][^>]*>/i);
-  if(image&&image[1])candidates.push({href:image[1],as:"image"});
-  return candidates.filter(item=>{
-    if(!item.href||!item.href.startsWith("/g/")||found.has(item.href))return false;
-    found.add(item.href);return true;
-  }).map(item=>'<link rel="preload" href="'+item.href.replace(/&/g,"&amp;").replace(/"/g,"&quot;")+
-    '" as="'+item.as+'"'+(item.cross?' crossorigin="anonymous"':"")+">").join("");
+  const stylesheet=[...html.matchAll(/<link\b[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi)];
+  stylesheet.slice(0,2).forEach(m=>candidates.push({href:m[1],as:"style"}));
+  const scripts=[...html.matchAll(/<script\b[^>]*src=["']([^"']+)["'][^>]*>/gi)];
+  scripts.slice(0,3).forEach(m=>candidates.push({href:m[1],as:"script"}));
+  const fonts=[...html.matchAll(/<link\b[^>]*rel=["']preload["'][^>]*href=["']([^"']+)["'][^>]*as=["']font["'][^>]*>/gi)];
+  fonts.slice(0,3).forEach(m=>candidates.push({href:m[1],as:"font",cross:true}));
+  const image=html.match(/<meta\b[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i)||
+    html.match(/<img\b[^>]*src=["']([^"']+)["'][^>]*>/i);
+  if(image&&image[1])candidates.unshift({href:image[1],as:"image"});
+  const tags=[];
+  for(const item of candidates){
+    let href=item.href;
+    if(!href||/^(?:data:|blob:|javascript:|mailto:|tel:|\/\/)/i.test(href))continue;
+    if(/^https?:\/\//i.test(href)){
+      try{const u=new URL(href);if(!/(?:^|\.)playigi\.com$/i.test(u.hostname))continue;href=proxyPathForUrl(u.href);}
+      catch(_){continue;}
+    }else if(href.startsWith("/")){
+      if(!href.startsWith("/g/"))href="/g"+href;
+    }else{
+      href="/g/"+href.replace(/^(?:\.\/)+/,"").replace(/^\/+/,"");
+    }
+    if(!href.startsWith("/g/")||found.has(href))continue;
+    found.add(href);
+    tags.push('<link rel="preload" href="'+href.replace(/&/g,"&amp;").replace(/"/g,"&quot;")+
+      '" as="'+item.as+'"'+(item.cross?' crossorigin="anonymous"':"")+">");
+  }
+  return tags.join("");
 }
 const PROXY_THEME=[
   '<meta name="robots" content="noindex,nofollow">',
@@ -110,25 +124,51 @@ const PROXY_THEME=[
 function rewriteDocument(text,type,origin){
   text=rewriteRemoteHosts(text,origin);text=rewriteRootPaths(text,type);
   if(/html/i.test(type)){
+    text=text.replace(/playigi\.com/gi,"IGI Online");
     const inject=PROXY_THEME+extractPreloads(text);
     if(/<\/head\s*>/i.test(text))text=text.replace(/<\/head\s*>/i,inject+"</head>");
     else text=inject+text;
   }
   return text;
 }
+const MAX_HTML_REWRITE_BYTES = 8 * 1024 * 1024;
 class TextRewriteTransform extends Transform{
-  constructor(type,origin){super();this.type=type;this.origin=origin;this.decoder=new StringDecoder("utf8");this.pending="";}
+  constructor(type,origin){
+    super();
+    this.type=type;this.origin=origin;this.isHtml=/html/i.test(type);
+    this.decoder=new StringDecoder("utf8");this.pending="";
+    this.htmlChunks=[];this.htmlBytes=0;
+  }
   _transform(chunk,encoding,callback){
     try{
-      const text=this.pending+this.decoder.write(chunk),keep=Math.min(16384,text.length),cut=text.length-keep;
-      if(cut>0){this.push(rewriteDocument(text.slice(0,cut),this.type,this.origin));this.pending=text.slice(cut);}
-      else this.pending=text;
+      const decoded=this.decoder.write(chunk);
+      if(this.isHtml){
+        this.htmlBytes+=Buffer.byteLength(decoded);
+        if(this.htmlBytes>MAX_HTML_REWRITE_BYTES){
+          callback(new Error("HTML rewrite limit exceeded"));return;
+        }
+        this.htmlChunks.push(decoded);callback();return;
+      }
+      const combined=this.pending+decoded;
+      const keep=8192,cut=combined.length-keep;
+      if(cut>0){
+        this.push(rewriteDocument(combined.slice(0,cut),this.type,this.origin));
+        this.pending=combined.slice(cut);
+      }else this.pending=combined;
       callback();
     }catch(error){callback(error);}
   }
   _flush(callback){
-    try{this.push(rewriteDocument(this.pending+this.decoder.end(),this.type,this.origin));callback();}
-    catch(error){callback(error);}
+    try{
+      if(this.isHtml){
+        const html=this.htmlChunks.join("")+this.decoder.end();
+        this.push(rewriteDocument(html,this.type,this.origin));
+        this.htmlChunks.length=0;
+      }else{
+        this.push(rewriteDocument(this.pending+this.decoder.end(),this.type,this.origin));
+      }
+      callback();
+    }catch(error){callback(error);}
   }
 }
 function guessType(path){
@@ -203,56 +243,6 @@ function setSafeHeaders(response,res,targetUrl,targetPath,origin,type){
   res.setHeader("Referrer-Policy","strict-origin-when-cross-origin");
   res.setHeader("Vary","Accept-Encoding, Range");
 }
-async function readLimited(response,maxBytes){
-  if(!response.body)return{text:"",bytes:0,tooLarge:false};
-  const reader=response.body.getReader(),chunks=[];let bytes=0;
-  while(true){
-    const next=await reader.read();if(next.done)break;bytes+=next.value.byteLength;
-    if(bytes>maxBytes){try{await reader.cancel();}catch(_){}return{text:"",bytes,tooLarge:true};}
-    chunks.push(Buffer.from(next.value));
-  }
-  return{text:Buffer.concat(chunks).toString("utf8"),bytes,tooLarge:false};
-}
-async function diagnostic(req,res,target,path,origin){
-  const headers=requestHeaders(req,target.origin,target.pathname);
-  const response=await fetch(target.href,{method:"GET",headers,redirect:"follow",signal:AbortSignal.timeout(30000)});
-  const summary={
-    upstreamStatus:response.status,statusText:response.statusText,finalUrl:response.url,
-    headers:{
-      "content-type":response.headers.get("content-type"),
-      "content-length":response.headers.get("content-length"),
-      "x-frame-options":response.headers.get("x-frame-options"),
-      "content-security-policy":response.headers.get("content-security-policy"),
-      "cross-origin-resource-policy":response.headers.get("cross-origin-resource-policy"),
-      "cross-origin-opener-policy":response.headers.get("cross-origin-opener-policy"),
-      "cross-origin-embedder-policy":response.headers.get("cross-origin-embedder-policy"),
-      "location":response.headers.get("location"),
-      "server":response.headers.get("server"),
-      "cf-ray":response.headers.get("cf-ray")
-    },path,assets:[],estimatedKnownAssetBytes:null
-  };
-  if(response.ok&&/html/i.test(response.headers.get("content-type")||"")){
-    const read=await readLimited(response,MAX_DIAGNOSTIC_BYTES);
-    if(!read.tooLarge){
-      summary.htmlBytes=read.bytes;
-      summary.title=(read.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i)||[,""])[1].replace(/\s+/g," ").trim();
-      const refs=new Set();
-      for(const m of read.text.matchAll(/(?:src|href)\s*=\s*["']([^"']+)["']/gi)){
-        try{const u=new URL(m[1],response.url);if(u.origin===new URL(response.url).origin&&/\.(?:css|js|mjs|wasm|png|jpe?g|webp|avif|woff2?|ttf|otf|mp3|ogg|mp4|webm)$/i.test(u.pathname))refs.add(u.href);}catch(_){}
-      }
-      const sizes=await Promise.all([...refs].slice(0,24).map(async url=>{
-        try{const r=await fetch(url,{method:"HEAD",headers,redirect:"follow",signal:AbortSignal.timeout(12000)});
-          return{path:new URL(url).pathname,status:r.status,bytes:Number(r.headers.get("content-length"))||0,type:r.headers.get("content-type")};}
-        catch(e){return{url,error:String(e).slice(0,120),bytes:0};}
-      }));
-      summary.assets=sizes;
-      if(sizes.some(x=>x.bytes>0))summary.estimatedKnownAssetBytes=sizes.reduce((n,x)=>n+(x.bytes||0),0);
-    }else summary.htmlBytesOverLimit=read.bytes;
-  }
-  res.statusCode=200;res.setHeader("Content-Type","application/json; charset=utf-8");
-  res.setHeader("Cache-Control","no-store");res.setHeader("X-Robots-Tag","noindex");
-  res.end(JSON.stringify(summary,null,2));
-}
 module.exports=async function handler(req,res){
   try{
     if(!["GET","HEAD","POST","PUT","PATCH","DELETE","OPTIONS"].includes(req.method)){
@@ -264,7 +254,6 @@ module.exports=async function handler(req,res){
     const target=new URL(mapped.path,"https://"+mapped.host);
     for(const [key,value] of incoming.searchParams.entries())if(key!=="path"&&key!=="__diag")target.searchParams.append(key,value);
     const origin=baseOrigin(req);
-    if(incoming.searchParams.get("__diag")==="1")return await diagnostic(req,res,target,path,origin);
     const headers=requestHeaders(req,target.origin,mapped.path);
     const init={method:req.method,headers,redirect:"manual",signal:AbortSignal.timeout(240000)};
     if(!["GET","HEAD"].includes(req.method)){init.body=Readable.toWeb(req);init.duplex="half";}
