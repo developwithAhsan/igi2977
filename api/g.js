@@ -285,7 +285,6 @@ module.exports=async function handler(req,res){
     res.statusCode=upstream.status;
     if(req.method==="HEAD"||!upstream.body)return res.end();
     const rewriteText=TEXT_TYPES.test(type);
-    res.setHeader("X-Proxy-Transform-Mode",rewriteText?"text-rewrite":"binary-stream");
     if(rewriteText){
       res.removeHeader("Content-Length");res.removeHeader("Content-Encoding");
       const source=Readable.fromWeb(upstream.body),transform=new TextRewriteTransform(type,origin);
