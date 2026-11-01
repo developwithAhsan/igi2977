@@ -123,8 +123,8 @@ const PROXY_THEME=[
 ].join("");
 function rewriteDocument(text,type,origin){
   text=rewriteRemoteHosts(text,origin);text=rewriteRootPaths(text,type);
+  text=text.replace(/playigi\.com/gi,"IGI Online");
   if(/html/i.test(type)){
-    text=text.replace(/playigi\.com/gi,"IGI Online");
     const inject=PROXY_THEME+extractPreloads(text);
     if(/<\/head\s*>/i.test(text))text=text.replace(/<\/head\s*>/i,inject+"</head>");
     else text=inject+text;

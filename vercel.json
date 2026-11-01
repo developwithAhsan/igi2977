@@ -164,6 +164,10 @@
       "destination": "/api/g?path="
     },
     {
+      "source": "/g/game",
+      "destination": "/api/g?path=game/"
+    },
+    {
       "source": "/g/:path*",
       "destination": "/api/g?path=:path*"
     },
