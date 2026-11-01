@@ -6,6 +6,7 @@
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Project I.G.I. Community Comments</title>
+<script>try{if(new URLSearchParams(location.search).get("page")==="home")document.documentElement.classList.add("home-comments")}catch(e){}</script>
 <style>
   :root{color-scheme:light;font:15px/1.5 Inter,system-ui,sans-serif;background:#fff;color:#596579}
   *{box-sizing:border-box}
@@ -13,15 +14,20 @@
   body{padding:8px}
   #disqus_thread{min-height:180px;width:100%;background:#fff;color:#596579}
   #disqus_thread a{color:#2f7d32}
+  html.home-comments,html.home-comments body{color-scheme:dark;background:transparent;color:#a9dbb6}
+  html.home-comments body{padding:0;font:13px/1.6 "IBM Plex Mono",ui-monospace,monospace}
+  html.home-comments #disqus_thread{background:transparent;color:#a9dbb6}
+  html.home-comments #disqus_thread a{color:#75f99b}
 </style>
 </head>
 <body>
 <div id="disqus_thread"></div>
 <script>
   var disqus_config = function () {
-    this.page.url = 'https://project-igi.online/play';
-    this.page.identifier = 'https://project-igi.online/play';
-    this.page.title = 'Project I.G.I. Online — Community Discussion';
+    var homeThread = new URLSearchParams(location.search).get('page') === 'home';
+    this.page.url = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
+    this.page.identifier = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
+    this.page.title = homeThread ? 'Project I.G.I. Online — Home Discussion' : 'Project I.G.I. Online — Community Discussion';
   };
   (function () {
     var d=document,s=d.createElement('script');
