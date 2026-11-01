@@ -30,7 +30,7 @@ body.igi-portal-loaded .igi-loader{opacity:0;visibility:hidden}
 .igi-progress span{display:block;width:36%;height:100%;background:var(--igi-text);box-shadow:0 0 14px var(--igi-glow);animation:igi-progress 2.8s ease-in-out infinite alternate}
 .igi-loader-status{color:var(--igi-highlight)!important}
 .igi-agent{margin-top:auto!important}
-#igi-retry{align-self:flex-start;min-height:34px;padding:6px 18px;border:1px solid var(--igi-border);border-radius:0;background:transparent;color:var(--igi-highlight);font:700 11px inherit;letter-spacing:.12em;pointer-events:auto;cursor:pointer}
+#igi-retry{align-self:flex-start;min-height:34px;padding:6px 18px;border:1px solid var(--igi-border);border-radius:0;background:transparent;color:var(--igi-highlight);font:700 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;pointer-events:auto;cursor:pointer}
 #igi-retry:hover{background:var(--igi-text);color:var(--igi-bg)}
 .igi-noscript{position:absolute;z-index:4;inset:auto 12px 12px;padding:12px;border:1px solid var(--igi-border);background:var(--igi-screen);color:var(--igi-highlight);text-align:center}
 @keyframes igi-blink{to{opacity:0}}
