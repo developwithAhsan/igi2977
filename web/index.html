@@ -211,6 +211,12 @@
   #status { font-variant-numeric: tabular-nums; color: var(--muted); max-width: 52ch; margin-inline: auto; }
   #eta { margin: 8px 0 0; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
 
+  /* Phone fullscreen recovery and enlarged subtitles for touch devices. */
+  #subcap { position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box; padding: 2px 5px;
+    font: 600 16px/1.22 "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", sans-serif-condensed, sans-serif;
+    font-stretch: condensed; letter-spacing: .01em; color: #e8e8e8; text-align: left; }
+  #subcap.band { background: #000; }
+  #subcap.panel { background: rgba(4, 22, 6, .93); border: 1px solid rgba(70, 200, 90, .7); }
   /* fullscreen: the stage fills the screen and the game letterboxes itself inside the canvas */
   #stage:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
   #stage:-webkit-full-screen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
@@ -583,9 +589,11 @@ body.settings-open:before{z-index:99!important}
   <!-- GAME: DO NOT EDIT — existing game stage, canvas, overlays and runtime DOM. -->
   <div id="stage">
     <canvas id="canvas" width="1024" height="768" tabindex="0"></canvas>
+    <div id="subcap" class="hidden" aria-live="polite"></div>
     <div id="netstatus" class="hidden"></div>
     <button id="fs" type="button" aria-hidden="true" tabindex="-1" style="display:none"></button>
     <div id="soundtip" class="hidden">Tap the game or press a key to turn on sound</div>
+    <button id="refull" type="button" aria-label="Enter fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fullscreen</button>
     <div id="rotate">Turn your device sideways to play</div>
     <div id="tguide" class="hidden" role="dialog" aria-label="How to play">
       <div class="tg-card">
@@ -853,9 +861,9 @@ body.settings-open:before{z-index:99!important}
 </script>
 <script>(function(){var note=document.getElementById('crashnote');if(!note)return;var reveal=function(){if(!note.classList.contains('hidden')&&!note.textContent.trim()){note.textContent='The game stopped and the browser reloaded the page. On a phone, this can happen when memory runs low. Close other tabs and apps before starting again.';}};new MutationObserver(reveal).observe(note,{attributes:true,attributeFilter:['class']});reveal();})();</script>
 <script defer src="netplay.js"></script>
-<script defer src="controls.js?v=8"></script>
-<script defer src="touch.js?v=12"></script>
-<script defer src="loader.js?v=36"></script>
+<script defer src="controls.js?v=9"></script>
+<script defer src="touch.js?v=13"></script>
+<script defer src="loader.js?v=38"></script>
 <style>
 .home-import-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:14px auto 0}
 .home-import-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;cursor:pointer}
