@@ -1468,12 +1468,17 @@ async function boot() {
     return;
   }
   if (!(await readMarker())) {
-    // Show manual import first; hosted download remains an explicit alternative button.
+    // Match the upstream hosted-install flow: when the server has game/manifest.json,
+    // start downloading immediately on the first visit (desktop and mobile).
+    // Keep the download handler's retry/failure UI, so a failed transfer never traps the player.
     if (hosted) {
+      status('Preparing your game download…');
       $('download').textContent = 'Download game automatically';
       $('download').classList.remove('hidden');
+      $('download').click();
+      return;
     }
-    showPicker('Choose your Project I.G.I. folder or select your game files. You can also use the download button.');
+    showPicker('Automatic download is not configured on this server yet. Choose your own legally obtained Project I.G.I. folder or select its game files.');
     return;
   }
   if (hosted) await refreshConfig(hosted);
