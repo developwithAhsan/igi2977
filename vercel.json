@@ -156,6 +156,18 @@
   ],
   "rewrites": [
     {
+      "source": "/g",
+      "destination": "/api/g?path="
+    },
+    {
+      "source": "/g/",
+      "destination": "/api/g?path="
+    },
+    {
+      "source": "/g/:path*",
+      "destination": "/api/g?path=:path*"
+    },
+    {
       "source": "/disqus-frame",
       "destination": "/web/disqus-frame.html"
     },
@@ -379,5 +391,10 @@
       ]
     }
   ],
-  "$schema": "https://openapi.vercel.sh/vercel.json"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/g.js": {
+      "maxDuration": 300
+    }
+  }
 }
