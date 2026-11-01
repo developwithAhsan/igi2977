@@ -19,7 +19,7 @@ body.home-page{margin:0!important;padding:0!important;width:100%;min-width:0;ove
 body.home-page a{color:var(--igi-text);text-underline-offset:3px}
 body.home-page a:hover{color:var(--igi-highlight)}
 .igi-launch-panel{
-  position:relative;isolation:isolate;display:block;width:min(100%,calc(100svh * 16 / 9));
+  position:relative;isolation:isolate;display:block;height:100%;width:min(100%,calc(100svh * 16 / 9));
   aspect-ratio:16 / 9;max-height:100svh;margin-inline:auto;overflow:hidden;
   background:#020b05;color:#5dff8a!important;text-decoration:none;outline:0;
 }
