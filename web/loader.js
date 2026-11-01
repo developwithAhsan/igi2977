@@ -1033,7 +1033,7 @@ async function run(session) {
   showBoot();   // cover the black canvas until the first frame renders (see frame loop below)
   if (touch) {
     // on a phone the game starts fullscreen; if the player later leaves it, #refull gets them back in
-    $('refull').onclick = () => RcTouch.goFullscreen($('stage'));
+    $('refull').onclick = () => RcTouch.goFullscreen($('stage'), true);
   } else { fullscreenTip(); controlsTip(); }
   if (session) await clearNetSaves(session);
   sizeCanvas();
@@ -1083,6 +1083,7 @@ async function run(session) {
   M._rc_gpu_init(canvas.width, canvas.height);
   new ResizeObserver(() => { sizeCanvas(); M._rc_set_canvas_size(canvas.width, canvas.height); }).observe(canvas);
   hookInput(M, !!session);
+  subtitles(M, touch);
   if (touch) { RcTouch.attach(M, $('stage'), canvas); followVisualViewport($('stage')); }
   if (session) { session.client.attach(M); showNetStatus(M, session); }
   crashWatch(M, touch);
@@ -1402,17 +1403,90 @@ async function boot() {
 // every visit and fought the page's own key layout. On every start the shipped copy is fetched again (3.7 KB)
 // over the one in storage, so the game always starts with its default bindings; keys are changed in the
 // page's panel. A failed fetch keeps whatever is there, so an offline start still works.
+// Refresh the game's shipped mission config without losing player-adjusted in-game mouse options.
+const CONFIG_REV = 2;
+function keepPlayerMouse(saved, fresh) {
+  const find = (b, name, type) => {
+    const at = [];
+    for (let i = 0; i + 17 < b.length; i++)
+      if (b[i] === 0x0d && b[i + 1] === name && b[i + 2] === 0x18 && b[i + 3] === 1 && b[i + 4] === 0 && b[i + 5] === 0 && b[i + 6] === 0 &&
+          b[i + 11] === 0x14 && b[i + 12] === type && b[i + 13] === 0 && b[i + 14] === 0 && b[i + 15] === 0) at.push(i + 16);
+    return at;
+  };
+  const out = fresh.slice();
+  const sensS = find(saved, 5, 6), sensF = find(out, 5, 6);
+  if (sensS.length && sensS.length === sensF.length)
+    sensS.forEach((o, k) => {
+      if (saved[o] !== 0x05) return;
+      const v = new DataView(saved.buffer, saved.byteOffset + o + 1, 4).getFloat32(0, true);
+      if (v > 0.02 && v < 3 && out[sensF[k]] === 0x05) out.set(saved.subarray(o, o + 5), sensF[k]);
+    });
+  const invS = find(saved, 4, 2), invF = find(out, 4, 2);
+  if (invS.length && invS.length === invF.length)
+    invS.forEach((o, k) => { if (saved[o] === 0x0f || saved[o] === 0x10) out[invF[k]] = saved[o]; });
+  return out;
+}
 async function refreshConfig(list) {
-  const e = list.find((f) => f.path.toLowerCase() === 'config.qvm');   // the root one (LANGUAGE/* has its own)
+  const e = list.find((f) => f.path.toLowerCase() === 'config.qvm');
   if (!e) return;
   try {
-    const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/'), { cache: 'no-cache' });
+    const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/') + '?rev=' + CONFIG_REV, { cache: 'no-cache' });
     if (!r.ok) return;
     const buf = await r.arrayBuffer();
     if (buf.byteLength !== e.size) return;
-    const w = await openWriter(await fileHandle(await gameDir(true), e.path, true), OPFS_DIR + '/' + e.path);
-    await w.write(buf); await w.close();
+    const fh = await fileHandle(await gameDir(true), e.path, true);
+    let fresh = new Uint8Array(buf);
+    try { fresh = keepPlayerMouse(new Uint8Array(await (await fh.getFile()).arrayBuffer()), fresh); } catch { /* no saved copy yet */ }
+    const w = await openWriter(fh, OPFS_DIR + '/' + e.path);
+    try { await w.write(fresh); await w.close(); } catch (err) { await w.abort(); throw err; }
   } catch (err) { console.warn('config.qvm refresh skipped:', err.message); }
+}
+
+function subtitles(M, touch) {
+  const box = $('subcap');
+  if (!box || !M._rc_subtitle || !touch) return;
+  let last = '', lastSeen = 0, lastBox = '';
+  const dec = new TextDecoder('latin1');
+  const canvas = $('canvas'), stage = $('stage');
+  setInterval(() => {
+    let text = '', b = null, col = 0;
+    try {
+      if (RcControls.get().subs) {
+        const p = M._rc_subtitle(), mem = new Uint8Array(M.wasmMemory.buffer, p, 512);
+        const end = mem.indexOf(0);
+        text = dec.decode(mem.slice(0, end < 0 ? 512 : end));
+        if (text && M._rc_subtitle_box) { b = Array.from(new Float32Array(M.wasmMemory.buffer, M._rc_subtitle_box(), 5)); col = M._rc_subtitle_color() >>> 0; }
+      }
+    } catch { text = ''; }
+    const now = performance.now();
+    if (text) lastSeen = now;
+    if (!text) { if (last && now - lastSeen > 500) { last = ''; box.classList.add('hidden'); } return; }
+    // the game's 640x480-style screen is a 4:3 box centred in the canvas (letterboxed, or the HUD box in wide mode)
+    const r = canvas.getBoundingClientRect(), S = stage.getBoundingClientRect();
+    const h = Math.min(r.height, (r.width * 3) / 4), w = (h * 4) / 3;
+    const ox = r.left - S.left + (r.width - w) / 2, oy = r.top - S.top + (r.height - h) / 2;
+    const geo = b ? b.map((v) => v.toFixed(3)).join() + '|' + Math.round(w) : '';
+    if (text === last && geo === lastBox) return;
+    last = text; lastBox = geo;
+    const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
+    const green = rgb[1] > 120 && rgb[1] > rgb[0] * 1.4;   // in play the game writes in green in a green panel
+    box.className = green ? 'panel' : 'band';
+    box.style.color = col ? `rgb(${rgb.join()})` : '';
+    const fs = Math.max(14, Math.min(22, h * 0.04));        // about twice the game's size on a phone
+    box.style.fontSize = `${fs}px`;
+    let x0 = ox + w * 0.05, y0 = oy + h * 0.85, width = w * 0.9, room = h * 0.15;
+    if (b && b[2] > b[0]) {
+      x0 = Math.max(ox, ox + b[0] * w - 4); y0 = Math.max(oy, oy + b[1] * h - 3);
+      width = Math.min(w - (x0 - ox) - 2, Math.max((b[2] - b[0]) * w + 8, w * 0.5));
+      // the room the game's own block leaves: to the bottom of the picture on the cutscene band, else twice its height
+      room = green ? Math.max((b[3] - b[1]) * h * 2.2, h * 0.16) : oy + h - y0;
+    }
+    box.style.left = `${x0}px`; box.style.top = `${y0}px`; box.style.width = `${width}px`; box.style.transform = 'none';
+    box.textContent = text.replace(/\n/g, ' ');
+    // as large as fits that room (about twice the game's size when it fits), never below 14 px (then it grows upwards)
+    for (let f = fs; f >= 14; f -= 1) { box.style.fontSize = `${f}px`; if (box.scrollHeight <= room + 1) break; }
+    if (box.scrollHeight > room + 1 && !green) box.style.top = `${Math.max(oy, oy + h - box.scrollHeight)}px`;   // still too tall: grow upwards
+  }, 120);
 }
 
 // ------------------------------------------------------------------ fullscreen
@@ -1425,7 +1499,8 @@ function setupFullscreen() {
   const active = () => document.fullscreenElement || document.webkitFullscreenElement;
   // body.fs drives the touch re-fullscreen pill (index.html): shown only when playing and NOT fullscreen.
   // Registered unconditionally (even where the desktop button is unavailable) so the pill is always right.
-  const syncFsClass = () => document.body.classList.toggle('fs', !!active());
+  const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  const syncFsClass = () => document.body.classList.toggle('fs', !!active() || standalone());
   document.addEventListener('fullscreenchange', syncFsClass);
   document.addEventListener('webkitfullscreenchange', syncFsClass);
   syncFsClass();
