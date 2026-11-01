@@ -714,6 +714,7 @@ body.inner-page .site-comments{
 
 /* Tablet and mobile: retain the 16:9 game canvas, then stack actions and controls. */
 @media (max-width:800px){
+  html body main#main-content:not(.inner-main)>*{order:4!important}
   html body main#main-content:not(.inner-main){
     display:flex!important;
     flex-direction:column!important;
