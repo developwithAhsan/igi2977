@@ -253,7 +253,7 @@
     },
     {
       "source": "/build/:path*",
-      "destination": "https://cdn.jsdelivr.net/gh/rishabhgupta3107/igi-browser@1049ed42a55152abd202169fa8574ff3855ab4b3/docs/build/:path*"
+      "destination": "/web/build/:path*"
     },
     {
       "source": "/game/:path*",
