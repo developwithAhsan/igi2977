@@ -943,23 +943,52 @@ function compactMemory() {
 
 // The browser dropped the WebGPU device (its GPU process died, or the page was pushed out of memory): the
 // game can't draw any more (render_wgpu.c calls this). Say so instead of leaving a frozen picture.
-window.rcDeviceLost = (msg) => {
+let gpuLostAt = 0, gpuFailTimer = 0;
+function gpuReloadPrompt(msg) {
   if ($('gpulost')) return;
-  try {   // telemetry (crash.php): how often the browser drops the device, and why
-    navigator.sendBeacon('crash.php', new Blob([JSON.stringify({ v: 20, type: 'gpulost', msg: String(msg || '').slice(0, 200), ua: navigator.userAgent,
-      mem: navigator.deviceMemory || 0, mission: RcControls.inMission() ? 1 : 0, bg: document.hidden ? 1 : 0 })], { type: 'application/json' }));
-  } catch { /* no beacon */ }
+  $('gpurestore')?.remove();
   const d = document.createElement('div');
   d.id = 'gpulost';
-  d.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.92);color:#fff;' +
-    'font:16px/1.5 ui-sans-serif,system-ui,sans-serif;text-align:center;padding:24px';
-  d.innerHTML = '<div><p style="font-size:20px;margin:0 0 8px">The graphics device was lost</p>' +
-    '<p style="opacity:.8;margin:0 0 18px">The browser stopped the game\'s renderer' + (msg ? ' (' + msg.replace(/[<>&]/g, '') + ')' : '') +
-    '. Your progress since the last save is lost.</p>' +
-    '<button id="gpulost-reload" style="font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#45cf79;color:#000;font-weight:700">Reload the game</button></div>';
-  document.body.appendChild(d);
-  $('gpulost-reload').onclick = () => location.reload();
+  d.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.92);color:#fff;font:16px/1.5 system-ui,sans-serif;text-align:center;padding:24px';
+  const card = document.createElement('div');
+  const heading = document.createElement('p');
+  heading.textContent = 'The graphics device could not be restored';
+  heading.style.cssText = 'font-size:20px;margin:0 0 8px';
+  const detail = document.createElement('p');
+  detail.textContent = 'The browser stopped the game renderer' + (msg ? ' (' + String(msg).slice(0,160) + ')' : '') + '. Reload the game to try again.';
+  detail.style.cssText = 'opacity:.8;margin:0 0 18px';
+  const button = document.createElement('button');
+  button.textContent = 'Reload the game';
+  button.style.cssText = 'font:inherit;padding:10px 22px;border-radius:8px;border:0;background:#45cf79;color:#000;font-weight:700';
+  button.onclick = () => location.reload();
+  card.append(heading, detail, button); d.appendChild(card); document.body.appendChild(d);
+}
+window.rcDeviceLost = (msg) => {
+  if (!gpuLostAt) gpuLostAt = performance.now();
+  if (!$('gpurestore')) {
+    const n = document.createElement('div');
+    n.id = 'gpurestore';
+    n.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:49;padding:8px 14px;border-radius:9px;background:rgba(8,14,10,.9);border:1px solid rgba(255,255,255,.22);color:#fff;font:13px system-ui,sans-serif';
+    n.textContent = 'Restoring graphics…';
+    document.body.appendChild(n);
+  }
+  const check = () => {
+    if (!gpuLostAt) return;
+    if (document.hidden) { gpuFailTimer = setTimeout(check, 1000); return; }
+    if (performance.now() - gpuLostAt > 20000) { gpuReloadPrompt(msg); return; }
+    gpuFailTimer = setTimeout(check, 1000);
+  };
+  clearTimeout(gpuFailTimer); gpuFailTimer = setTimeout(check, 1000);
 };
+window.rcDeviceRestored = () => {
+  gpuLostAt = 0; clearTimeout(gpuFailTimer); $('gpurestore')?.remove();
+};
+window.rcRecoverFailed = (final) => {
+  if (final) { clearTimeout(gpuFailTimer); gpuReloadPrompt(''); }
+};
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && gpuLostAt) gpuLostAt = performance.now();
+});
 
 function sizeCanvas() {
   const canvas = $('canvas');
@@ -1024,6 +1053,26 @@ function showNetStatus(M, session) {
   }, 1000);
 }
 
+function webgl2Available() {
+  try { const test = document.createElement('canvas'); return !!(test.getContext('webgl2', { failIfMajorPerformanceCaveat: false }) || test.getContext('webgl2')); }
+  catch { return false; }
+}
+async function chooseRendererForLaunch() {
+  const forced = params.get('renderer');
+  if (forced === 'gl') return webgl2Available() ? 'gl' : 'gpu';
+  if (!params.has('renderer')) {
+    try { if (localStorage.getItem('igi-renderer-gl') && webgl2Available()) return 'gl'; } catch { /* storage blocked */ }
+  }
+  if (navigator.gpu && typeof navigator.gpu.requestAdapter === 'function') {
+    try {
+      let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
+      if (!adapter) adapter = await navigator.gpu.requestAdapter().catch(() => null);
+      if (adapter) { window.RC_RENDERER = 'gpu'; return 'gpu'; }
+    } catch { /* try WebGL2 after the player has pressed Play */ }
+  }
+  return webgl2Available() ? 'gl' : 'gpu';
+}
+
 async function run(session) {
   const audio = newAudioContext();   // first, while the click that called run() is still a user gesture
   const touch = !session && RcTouch.wanted();
@@ -1031,6 +1080,7 @@ async function run(session) {
   $('panel').classList.add('hidden');
   document.body.classList.add('playing');   // enables the touch re-fullscreen pill (index.html)
   showBoot();   // cover the black canvas until the first frame renders (see frame loop below)
+  window.RC_RENDERER = await chooseRendererForLaunch();   // adapter selection happens only after Play, never as a startup gate
   if (touch) {
     // on a phone the game starts fullscreen; if the player later leaves it, #refull gets them back in
     $('refull').onclick = () => RcTouch.goFullscreen($('stage'), true);
@@ -1038,7 +1088,7 @@ async function run(session) {
   if (session) await clearNetSaves(session);
   sizeCanvas();
   const script = document.createElement('script');
-  script.src = '/build/recomp.js?v=16';
+  script.src = '/build/recomp.js?v=27';
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1065,6 +1115,7 @@ async function run(session) {
       if (params.has('poke')) m.ENV.RC_POKE = params.get('poke');      // testing: memory pokes (host/input.c)
       if (params.has('queue')) m.ENV.RC_QUEUE = params.get('queue');
       if (params.has('gpuskip')) m.ENV.RC_GPU_SKIP = '1';   // diagnostics: the executor issues no draws
+      if (RcControls.get().wide) m.ENV.RC_WIDE_DISPLAY = '1';
       if (session) Object.assign(m.ENV, RcNetplay.gameEnv(session), { RC_USERDATA: '/opfs/' + netSaves(session) });
       m.ENV.RC_LOG_FPS = params.has('fps') ? '1' : '';
       if (!params.has('fps')) delete m.ENV.RC_LOG_FPS;
@@ -1080,7 +1131,9 @@ async function run(session) {
     }],
   });
   const canvas = $('canvas');
-  M._rc_gpu_init(canvas.width, canvas.height);
+  if (window.RC_RENDERER === 'gl') {
+    if (typeof M._rc_gl_init !== 'function' || !M._rc_gl_init(canvas.width, canvas.height)) throw new Error('WebGL 2 could not start in this browser engine build.');
+  } else M._rc_gpu_init(canvas.width, canvas.height);
   new ResizeObserver(() => { sizeCanvas(); M._rc_set_canvas_size(canvas.width, canvas.height); }).observe(canvas);
   hookInput(M, !!session);
   subtitles(M, touch);
