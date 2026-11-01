@@ -1,6 +1,19 @@
 const { Readable, Transform } = require("node:stream");
 const { StringDecoder } = require("node:string_decoder");
-const PRIMARY_HOST = "playigi.com";
+const UPSTREAM_URL = new URL(process.env.GAME_UPSTREAM_ORIGIN || "");
+if (UPSTREAM_URL.protocol !== "https:" || UPSTREAM_URL.username || UPSTREAM_URL.password ||
+    UPSTREAM_URL.pathname !== "/" || UPSTREAM_URL.search || UPSTREAM_URL.hash) {
+  throw new Error("GAME_UPSTREAM_ORIGIN must be an HTTPS origin only");
+}
+const PRIMARY_HOST = UPSTREAM_URL.hostname.toLowerCase();
+const PRIMARY_ORIGIN = UPSTREAM_URL.origin;
+function isAllowedUpstreamHost(host) {
+  host = String(host || "").toLowerCase();
+  return host === PRIMARY_HOST || host.endsWith("." + PRIMARY_HOST);
+}
+function upstreamHostPattern() {
+  return "(?:[a-z0-9-]+\\.)*" + PRIMARY_HOST.replace(/\./g, "\\.");
+}
 const MAX_DIAGNOSTIC_BYTES = 2 * 1024 * 1024;
 const TEXT_TYPES = /^(?:text\/|application\/(?:javascript|x-javascript|json|manifest\+json|xml))/i;
 const EXTENSION_TYPES = {
@@ -38,7 +51,7 @@ function resolveUpstreamPath(path){
   let host=PRIMARY_HOST;
   if(parts[0]==="_host"){
     host=String(parts[1]||"").toLowerCase();
-    if(!/^(?:[a-z0-9-]+\.)+playigi\.com$/.test(host))return null;
+    if(!isAllowedUpstreamHost(host))return null;
     parts.splice(0,2);
   }
   const resolved="/"+parts.join("/");
@@ -52,9 +65,12 @@ function proxyPathForUrl(raw){
   return prefix+(parsed.pathname||"/")+parsed.search+parsed.hash;
 }
 function rewriteRemoteHosts(text,origin){
-  text=text.replace(/https?:\/\/(?:[a-z0-9-]+\.)*playigi\.com(?::\d+)?(?:\/[^"'\\s<>)]*)?/gi,value=>proxyPathForUrl(value));
-  text=text.replace(/\/\/(?:[a-z0-9-]+\.)*playigi\.com(?::\d+)?(?:\/[^"'\\s<>)]*)?/gi,value=>proxyPathForUrl("https:"+value));
-  return text.replace(/https?:\/\/(?:[a-z0-9-]+\.)*playigi\.com/gi,origin);
+  const hostPattern=upstreamHostPattern();
+  const absolutePattern=new RegExp("https?:\\/\\/"+hostPattern+"(?::\\d+)?(?:\\/[^\"'\\\\s<>)]*)?","gi");
+  const relativePattern=new RegExp("\\/\\/"+hostPattern+"(?::\\d+)?(?:\\/[^\"'\\\\s<>)]*)?","gi");
+  text=text.replace(absolutePattern,value=>proxyPathForUrl(value));
+  text=text.replace(relativePattern,value=>proxyPathForUrl("https:"+value));
+  return text.replace(new RegExp("https?:\\/\\/"+hostPattern,"gi"),origin);
 }
 function rewriteRootPaths(text,contentType){
   const isHtml=/html/i.test(contentType),isCss=/css/i.test(contentType);
@@ -91,7 +107,7 @@ function extractPreloads(html){
     let href=item.href;
     if(!href||/^(?:data:|blob:|javascript:|mailto:|tel:|\/\/)/i.test(href))continue;
     if(/^https?:\/\//i.test(href)){
-      try{const u=new URL(href);if(!/(?:^|\.)playigi\.com$/i.test(u.hostname))continue;href=proxyPathForUrl(u.href);}
+      try{const u=new URL(href);if(!isAllowedUpstreamHost(u.hostname))continue;href=proxyPathForUrl(u.href);}
       catch(_){continue;}
     }else if(href.startsWith("/")){
       if(!href.startsWith("/g/"))href="/g"+href;
@@ -125,7 +141,7 @@ const PROXY_THEME=[
 ].join("");
 function rewriteDocument(text,type,origin){
   text=rewriteRemoteHosts(text,origin);text=rewriteRootPaths(text,type);
-  text=text.replace(/playigi\.com/gi,"IGI Online");
+  text=text.replace(new RegExp(PRIMARY_HOST.replace(/\./g,"\\."),"gi"),"IGI Online");
   if(/html/i.test(type)){
     const inject=PROXY_THEME+extractPreloads(text);
     if(/<\/head\s*>/i.test(text))text=text.replace(/<\/head\s*>/i,inject+"</head>");
@@ -209,8 +225,8 @@ function requestHeaders(req,upstreamOrigin,path){
   if(req.headers.cookie)headers.set("cookie",req.headers.cookie);
   headers.set("accept-encoding","identity");
   headers.set("referer",upstreamOrigin+(path==="/"?"/":path));
-  headers.set("origin","https://"+PRIMARY_HOST);
-  if(process.env.PLAYIGI_PROXY_KEY)headers.set("X-Proxy-Key",process.env.PLAYIGI_PROXY_KEY);
+  headers.set("origin",PRIMARY_ORIGIN);
+  if(process.env.GAME_PROXY_KEY)headers.set("X-Proxy-Key",process.env.GAME_PROXY_KEY);
   return headers;
 }
 function setSafeHeaders(response,res,targetUrl,targetPath,origin,type){
@@ -229,7 +245,7 @@ function setSafeHeaders(response,res,targetUrl,targetPath,origin,type){
     if(key==="location")value=rewriteLocation(value);
     if(key==="link")value=rewriteRemoteHosts(value,origin).replace(/(["'])\/(?!\/|g\/)/g,'$1/g/');
     if(key==="content-security-policy"||key==="content-security-policy-report-only")
-      value=value.replace(/https?:\/\/(?:[a-z0-9-]+\.)*playigi\.com/gi,origin);
+      value=value.replace(new RegExp("https?:\\/\\/"+upstreamHostPattern(),"gi"),origin);
     if(key==="service-worker-allowed")value="/g/";
     res.setHeader(name,value);
   }
@@ -279,7 +295,7 @@ module.exports=async function handler(req,res){
     source.on("error",()=>{if(!res.headersSent)res.statusCode=502;res.destroy();});
     source.pipe(res);
   }catch(error){
-    console.error("[playigi-proxy]",error&&error.stack?error.stack:error);
+    console.error("[game-proxy]",error&&error.stack?error.stack:error);
     if(!res.headersSent)return sendError(res,502,"The upstream game site could not be reached. Please retry.");
     res.destroy();
   }
