@@ -26,6 +26,7 @@
   function retryNow(){
     if(ready)return;
     clearRetryTimer();
+    if(retries>=maxRetries)retries=0;
     if(retries<maxRetries){
       retries++;
       if(status)status.textContent="CONNECTING... RETRYING // ATTEMPT "+retries+" OF "+maxRetries;
