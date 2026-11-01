@@ -32,8 +32,18 @@ body.home-page a:hover{color:var(--igi-highlight)}
 .igi-game-frame{display:none;width:100%;height:100%;border:0;background:#020b05}
 .igi-launch-stage.is-loading .igi-launch-panel{display:none}
 .igi-launch-stage.is-loading .igi-game-frame{display:block}
-.igi-game-loading{position:absolute;inset:auto 0 0;z-index:3;margin:0;padding:9px 14px;background:rgba(2,11,5,.88);color:#5dff8a;text-align:center;font:700 11px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.12em}
-.igi-game-loading[hidden]{display:none!important}
+.igi-game-loading{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2vw,20px);padding:clamp(18px,4vw,44px);background:#020b05;color:#5dff8a;text-align:center;font:700 clamp(10px,1.3vw,14px)/1.7 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase}
+.igi-game-loading[hidden],.igi-loader-retry[hidden]{display:none!important}
+.igi-loader-kicker{color:rgba(93,255,138,.65);font-size:clamp(9px,1vw,12px);letter-spacing:.2em}
+.igi-loader-line{color:#c8ffd8;text-shadow:0 0 12px rgba(93,255,138,.25)}
+.igi-loader-detail{color:rgba(93,255,138,.75);font-size:clamp(9px,1vw,12px)}
+.igi-loader-progress{width:min(100%,320px);height:8px;overflow:hidden;border:1px solid rgba(93,255,138,.45);background:rgba(93,255,138,.08)}
+.igi-loader-progress span{display:block;width:35%;height:100%;background:#5dff8a;box-shadow:0 0 12px rgba(93,255,138,.55);animation:igi-loader-scan 1.6s ease-in-out infinite alternate}
+.igi-loader-agent{position:absolute;left:clamp(14px,3vw,32px);bottom:clamp(12px,2.5vw,26px);color:rgba(93,255,138,.6);font-size:10px;letter-spacing:.16em}
+.igi-loader-retry{min-height:40px;padding:8px 18px;border:1px solid #c8ffd8;background:transparent;color:#c8ffd8;font:700 11px/1.4 "IBM Plex Mono",ui-monospace,Consolas,monospace;letter-spacing:.12em;cursor:pointer}
+.igi-loader-retry:hover,.igi-loader-retry:focus-visible{background:#5dff8a;color:#020b05;outline:2px solid #c8ffd8;outline-offset:3px}
+@keyframes igi-loader-scan{from{transform:translateX(-110%)}to{transform:translateX(290%)}}
+
 .igi-launch-image{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;object-fit:cover;object-position:center}
 .igi-launch-overlay{position:absolute;inset:0;z-index:1;pointer-events:none;background:rgba(2,11,5,.78)}
 .igi-launch-panel:after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;background:repeating-linear-gradient(to bottom,rgba(0,0,0,.14) 0 1px,transparent 1px 4px),radial-gradient(ellipse at center,transparent 38%,rgba(0,0,0,.62) 100%);opacity:.65}
@@ -99,7 +109,7 @@ body.home-page #sitefoot .copyright{display:flex;flex-wrap:wrap;justify-content:
 @media(max-width:768px) and (orientation:portrait){
   .igi-launch-stage{width:min(100%,calc(85svh * 4 / 5));aspect-ratio:4 / 5;max-height:85svh}
 }
-@media(prefers-reduced-motion:reduce){
+@media(prefers-reduced-motion:reduce){\n  .igi-loader-progress span{animation:none;transform:none;width:55%}
   html{scroll-behavior:auto}
   .igi-launch-panel:after{display:none}
   .igi-launch-cursor{animation:none}
