@@ -99,3 +99,5 @@ body.home-page #sitefoot .copyright{display:flex;flex-wrap:wrap;justify-content:
 
 @media(max-width:768px) and (orientation:portrait){.igi-game-shell{width:min(100%,calc(85svh * 4 / 5));aspect-ratio:4 / 5;max-height:85svh}}
 @media(prefers-reduced-motion:reduce){.igi-fullscreen{transition:none!important}}
+
+.igi-debug{margin-top:8px!important;color:var(--igi-muted)!important;font-size:9px!important;line-height:1.5!important;letter-spacing:.02em!important;overflow-wrap:anywhere}
