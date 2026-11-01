@@ -66,7 +66,7 @@ function rewriteRootPaths(text,contentType){
   }
   if(isCss){
     text=text.replace(/url\((\s*["']?)\/(?!\/|g(?:\/|["')]))/gi,"url($1/g/");
-    text=text.replace(/(^|[\s{;])\/(?!\/|g(?:\/|[\s;]))(?=[^;\s})]+)/g,"$1/g/");
+    text=text.replace(/(@import\s+(?:url\(\s*)?["']?)\/(?!\/|g(?:\/|["')]))/gi,"$1/g/");
   }
   text=text.replace(/(["'\x60])\/(?!\/|g(?:\/|["'\x60]))([^"'\x60\s<>]*)/g,"$1/g/$2");
   text=text.replace(/\b(?:window\.)?top\.location\b/g,"window.location");
