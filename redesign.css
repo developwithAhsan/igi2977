@@ -882,3 +882,19 @@ body.inner-page .site-comments{
   .site-brand .brand-name,.site-brand .brand-tagline{overflow-wrap:normal}
   .site-nav a[aria-current=page]:after{display:block!important;bottom:2px!important}
 }
+
+
+/* Touch devices use the coarse-pointer layout; keep the Settings dialog inert until explicitly opened. */
+html body #kbd[aria-hidden="true"]{
+  display:none!important;
+  visibility:hidden!important;
+  opacity:0!important;
+  pointer-events:none!important;
+}
+html body #kbd[aria-hidden="false"],
+html body #kbd.is-open{
+  display:grid!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+}
