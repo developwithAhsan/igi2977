@@ -156,22 +156,6 @@
   ],
   "rewrites": [
     {
-      "source": "/g",
-      "destination": "/api/g?path="
-    },
-    {
-      "source": "/g/",
-      "destination": "/api/g?path="
-    },
-    {
-      "source": "/g/game",
-      "destination": "/api/g?path=game/"
-    },
-    {
-      "source": "/g/:path*",
-      "destination": "/api/g?path=:path*"
-    },
-    {
       "source": "/disqus-frame",
       "destination": "/web/disqus-frame.html"
     },
