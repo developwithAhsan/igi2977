@@ -59,7 +59,7 @@ const fail = (error) => {
   }
   status('Game could not start: ' + message);
   show('loading');
-  if (/compiled game engine is missing or could not be loaded|recomp\\.wasm|webassembly.*(fetch|instantiate)|failed to load.*wasm/i.test(message)) {
+  if (/compiled game engine is missing or could not be loaded|recomp[.]wasm|webassembly.*(fetch|instantiate)|failed to load.*wasm/i.test(message)) {
     let fallback = $('engine-fallback');
     if (!fallback) {
       fallback = document.createElement('div');
