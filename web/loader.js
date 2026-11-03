@@ -426,10 +426,10 @@ async function hostedManifest() {
 // HTTP/2 connection. Each streams straight into OPFS and files already at the right size are skipped, so an
 // interrupted download resumes where it stopped.
 const DL_CONCURRENCY = 10;
-async function importFromServer(list) {
+async function importFromServer(list, force = false) {
   const stopTips = startTips($('tips'));
   try {
-    try { await importFromServerInner(list); }
+    try { await importFromServerInner(list, force); }
     catch (err) {
       // A browser short of storage evicts files behind the folder's back: entries still listed can't be opened
       // ("could not be found at the time an operation was processed"), and a download over such a folder
@@ -438,13 +438,13 @@ async function importFromServer(list) {
       console.warn('the game folder is inconsistent, downloading again from scratch:', err.message);
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(OPFS_DIR, { recursive: true }).catch(() => { /* already gone */ });
-      await importFromServerInner(list);
+      await importFromServerInner(list, force);
     }
   } finally {
     stopTips();
   }
 }
-async function importFromServerInner(list) {
+async function importFromServerInner(list, force = false) {
   await navigator.storage.persist?.();
   const dir = await gameDir(true);
   const total = list.reduce((s, e) => s + e.size, 0);
@@ -510,7 +510,7 @@ async function importFromServerInner(list) {
       const e = queue.shift();
       if (!e) return;
       const fh = await fileHandle(dir, e.path, true);
-      if ((await fh.getFile()).size === e.size) { done += e.size; shown(); continue; }
+      if (!force && (await fh.getFile()).size === e.size) { done += e.size; shown(); continue; }
       // Fetch with retries: a dropped or truncated connection (ERR_CONTENT_LENGTH_MISMATCH, a short body) must
       // not leave a wrong-sized file that later breaks a mission — re-fetch until the written size is exact.
       let ok = false, lastErr;
@@ -1477,7 +1477,7 @@ async function boot() {
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
       if (!hosted) throw new Error('Automatic download is not configured: the authorised game source must provide /game/manifest.json and its listed files.');
-      await importFromServer(hosted);
+      await importFromServer(hosted, forceHostedDownload);
       ready();
     }
     catch (err) { offerDownload(storageProblem(err) || errorMessage(err, 'The automatic game download failed.')); }
