@@ -53,15 +53,13 @@ const fail = (error) => {
   document.body.classList.remove('playing');
   $('panel').classList.remove('hidden');
   if (gpuStartupFailure) {
-    // Unsupported/lost graphics should not turn the import/launcher screen into an error page.
-    // The launch was attempted; keep the imported files and let the player try again later.
     $('crashnote')?.classList.add('hidden');
     show('home');
     return;
   }
   status('Game could not start: ' + message);
   show('loading');
-  if (/compiled game engine is missing or could not be loaded/i.test(message)) {
+  if (/compiled game engine is missing or could not be loaded|recomp\\.wasm|webassembly.*(fetch|instantiate)|failed to load.*wasm/i.test(message)) {
     let fallback = $('engine-fallback');
     if (!fallback) {
       fallback = document.createElement('div');
@@ -69,15 +67,8 @@ const fail = (error) => {
       fallback.className = 'home-import-actions';
       const note = document.createElement('p');
       note.className = 'home-import-help';
-      note.textContent = 'This player deployment is missing its compiled engine. OpenIGI is a separate browser reimplementation, not this site’s engine; it may ask you to choose your own game folder.';
-      const link = document.createElement('a');
-      link.className = 'btn home-import-btn';
-      link.href = 'https://openigi.com/';
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = 'Try the OpenIGI browser player';
-      link.setAttribute('aria-label', 'Open the independent OpenIGI browser player in a new tab');
-      fallback.append(note, link);
+      note.textContent = 'The matching browser engine is missing from this deployment. It needs both /build/recomp.js and /build/recomp.wasm, generated together with build_web.sh from the project source and a legally obtained game executable. The site cannot recreate these compiled files from the game folder download.';
+      fallback.append(note);
       $('status').insertAdjacentElement('afterend', fallback);
     }
   }
@@ -409,10 +400,23 @@ async function importFromPicker(fileList) {
 // and files already there at the right size are kept, so an interrupted download resumes where it stopped.
 async function hostedManifest() {
   try {
-    const r = await fetch('game/manifest.json');
+    const r = await fetch('game/manifest.json', { cache: 'no-store' });
     if (!r.ok) return null;
-    const list = (await r.json()).filter((e) => !SKIP.test(e.path));
-    return list.some((e) => e.path.toLowerCase() === 'igi.exe') ? list : null;
+    const entries = await r.json();
+    if (!Array.isArray(entries)) return null;
+    const seen = new Set(), list = [];
+    for (const entry of entries) {
+      if (!entry || typeof entry.path !== 'string' || !Number.isSafeInteger(entry.size) || entry.size < 0) return null;
+      const path = entry.path.replace(/^\\/+/, '');
+      const parts = path.split('/');
+      if (!path || path.includes('\\\\') || path.includes('\\0') || parts.some((part) => !part || part === '.' || part === '..')) return null;
+      if (SKIP.test(path)) continue;
+      const key = path.toLowerCase();
+      if (seen.has(key)) return null;
+      seen.add(key);
+      list.push({ path, size: entry.size });
+    }
+    return list.some((entry) => entry.path.toLowerCase() === 'igi.exe') ? list : null;
   } catch { return null; }
 }
 
@@ -1108,7 +1112,7 @@ async function run(session) {
   if (session) await clearNetSaves(session);
   sizeCanvas();
   const script = document.createElement('script');
-  script.src = '/build/recomp.js?v=28';
+  script.src = '/build/recomp.js?v=29';
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1444,9 +1448,11 @@ async function boot() {
     $('help').classList.remove('hidden');
   };
 
-  // A hosted game folder (game/manifest.json) is downloaded; without one the player picks their own copy.
-  // Phones and tablets can't pick folders, so there it's the only way in.
+  // A hosted, authorised game folder is installed automatically on first visit.
+  // ?devgame forces the same automatic install/refresh even when this browser already has an install marker.
   const hosted = await hostedManifest();
+  const installed = await readMarker();
+  const forceHostedDownload = params.has('devgame');
   if (hosted) $('reset').textContent = 'Reload the game again';
   const offerDownload = (msg) => {
     status(msg);
@@ -1469,6 +1475,7 @@ async function boot() {
     $('download').classList.add('hidden');
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
+      if (!hosted) throw new Error('Automatic download is not configured: the authorised game source must provide /game/manifest.json and its listed files.');
       await importFromServer(hosted);
       ready();
     }
@@ -1487,18 +1494,17 @@ async function boot() {
     showPicker('This browser does not support the local storage needed to import game files. You can still open the chooser, but use a current Chrome/Edge browser in a normal (not private) window to complete the import.');
     return;
   }
-  if (!(await readMarker())) {
-    // Match the upstream hosted-install flow: when the server has game/manifest.json,
-    // start downloading immediately on the first visit (desktop and mobile).
-    // Keep the download handler's retry/failure UI, so a failed transfer never traps the player.
-    if (hosted) {
-      status('Preparing your game download…');
-      $('download').textContent = 'Download game automatically';
-      $('download').classList.remove('hidden');
-      $('download').click();
-      return;
-    }
-    showPicker('Automatic download is not configured on this server yet. Choose your own legally obtained Project I.G.I. folder or select its game files.');
+  if (hosted && (forceHostedDownload || !installed)) {
+    status(forceHostedDownload ? 'Refreshing your hosted game files…' : 'Preparing your automatic game download…');
+    $('download').textContent = forceHostedDownload ? 'Refreshing game files automatically' : 'Download game automatically';
+    $('download').classList.remove('hidden');
+    $('download').click();
+    return;
+  }
+  if (!installed) {
+    showPicker(forceHostedDownload
+      ? 'Automatic download was requested, but this server has no valid /game/manifest.json. Configure an authorised game-file source to enable it.'
+      : 'Automatic download is not configured on this server yet. Choose your own legally obtained Project I.G.I. folder or select its game files.');
     return;
   }
   if (hosted) await refreshConfig(hosted);
@@ -1670,7 +1676,7 @@ function controlsTip() {
 async function buildVersion() {
   // peers must run the same build and game files, or their simulations diverge
   const marker = await readMarker();
-  const wasm = await fetch('build/recomp16.wasm', { method: 'HEAD' }).catch(() => null);
+  const wasm = await fetch('build/recomp.wasm', { method: 'HEAD', cache: 'no-store' }).catch(() => null);
   // the ETag comes back weak (W/"...") when the response is compressed: compare only its value
   const etag = (wasm?.headers.get('ETag') || '').replace(/^W\//, '').replace(/"/g, '');
   return `${marker?.version || 'local'}:${etag || wasm?.headers.get('Content-Length') || '?'}`;
