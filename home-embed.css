@@ -73,3 +73,20 @@ body.home-page #sitefoot .copyright{display:flex;flex-wrap:wrap;justify-content:
 
 /* The homepage hosts the same local game surface as /play, so keep its UI typography intact. */
 body.home-page { font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+
+/* Footer alignment: keep all columns inside the footer and allow long legal copy to wrap. */
+body.home-page #sitefoot {
+  box-sizing: border-box;
+  align-items: start;
+  row-gap: 18px;
+  overflow-wrap: anywhere;
+  padding-top: 32px !important;
+}
+body.home-page #sitefoot > * { min-width: 0; }
+body.home-page #sitefoot .legal-note { margin: 0; }
+body.home-page #sitefoot .copyright { align-items: center; line-height: 1.6; }
+@media (max-width: 760px) {
+  body.home-page #sitefoot { padding-bottom: max(18px, env(safe-area-inset-bottom)) !important; }
+  body.home-page #sitefoot .copyright { align-items: flex-start; }
+}

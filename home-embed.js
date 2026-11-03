@@ -1,5 +1,13 @@
 (function () {
   "use strict";
+  // Prevent scripts that focus controls during startup from opening the homepage at its footer.
+  // Respect hash links and normal browser back/forward restoration.
+  var navigation = window.performance && performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+  if (!window.location.hash && !(navigation && navigation.type === "back_forward")) {
+    window.addEventListener("pageshow", function (event) {
+      if (!event.persisted && !window.location.hash) window.scrollTo(0, 0);
+    }, { once: true });
+  }
   var frame = document.getElementById("disqus-frame");
   var fallback = document.getElementById("disqus-fallback");
   if (!frame) return;
