@@ -3,16 +3,10 @@
 <head>
 <meta charset="utf-8">
 <!-- Analytics is intentionally not connected until the site owner supplies an approved measurement ID and consent setup. -->
-<!-- Ads (Adsterra): the network's tags live in ad.html (one per slot); set a slot to true here to show it.
-       side: desktop left gutter 160x600; lead: 728x90, box: 300x250 and native (the native widget: off until its
-       layout in the dashboard is a row of four, "4:1" — the default "1:4" is a column of four, which a landing-sized
-       box cuts off), all under the landing views on desktop; mobile: 320x50 under the landing views on phones;
-       social: the floating social bar (off: it would float over the game). Sizes must match ad.html. -->
-  
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Play Project I.G.I. Online Free in Browser</title>
+<title>Project I.G.I. Online — Play in Your Browser</title>
 <meta name="description" content="Website access is free; import your own legally obtained Project I.G.I. game files. No separate installer or sign-up; game files are not hosted here.">
 <meta name="author" content="IGI Online Team">
 
@@ -36,18 +30,556 @@
 <meta name="twitter:image" content="https://project-igi.online/og-project-igi.png">
 
 <link rel="manifest" href="/site.webmanifest"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #070b08; --fg: #eef4ef; --muted: #9fb3a5; --faint: #6f8576;
+    --accent: #34b866; --accent-hi: #45cf79; --ball: #d23a2f;
+    --card: rgba(255, 255, 255, .055); --card-hi: rgba(255, 255, 255, .09); --line: rgba(255, 255, 255, .12);
+    --field: rgba(0, 0, 0, .28); --radius: 14px;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow-x: hidden;
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 16px; }
+  /* Site footer: a clean band below the game stage (not overlaid on it). Generous spacing, a hairline rule,
+     a quiet second line for the legal credit — the restrained, roomy feel of an Apple footer. */
+  #sitefoot { width: min(100%, calc((100vh - 150px) * 4 / 3)); margin: 20px auto 8px; padding: 22px 20px 10px;
+    border-top: 1px solid var(--line); text-align: center; }
+  @media (min-width: 1120px) { body:not(.kbd-off) #sitefoot { width: min(calc(100% - 440px), calc((100vh - 150px) * 4 / 3)); } }
+  #sitefoot .foot-main { display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+    gap: 10px 20px; font-size: 15px; color: var(--fg); }
+  #sitefoot .foot-by { font-weight: 600; letter-spacing: .01em; }
+  #sitefoot a { color: var(--accent-hi); text-decoration: none; display: inline-flex; align-items: center; gap: 7px;
+    transition: color .15s ease; }
+  #sitefoot a:hover { color: var(--fg); }
+  #sitefoot .foot-by a { color: var(--accent-hi); }
+  #sitefoot .foot-ico { width: 34px; height: 34px; justify-content: center; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--muted); }
+  #sitefoot .foot-ico:hover { color: var(--fg); background: var(--card-hi); border-color: rgba(255, 255, 255, .22); }
+  #sitefoot .foot-ico svg { width: 17px; height: 17px; display: block; }
+  #sitefoot .foot-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--faint); opacity: .7; }
+  #sitefoot .foot-visits { color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  #sitefoot .foot-legal { margin: 16px 0 0; color: var(--faint); font-size: 12.5px; line-height: 1.6; }
+  #sitefoot .foot-legal a { color: var(--faint); display: inline; text-decoration: underline; text-underline-offset: 2px; }
+  #sitefoot .foot-legal a:hover { color: var(--muted); }
+  body.coarse #sitefoot, body.touch #sitefoot { display: none; }
+  /* The 4:3 stage is centred. On viewports wide enough to fit a side-panel reference without crowding
+     the stage, 440px is reserved symmetrically (220 each side) so the panel sits in that gap and the
+     stage stays centred rather than off-set. On narrow viewports the panel is hidden and the stage uses
+     the full width. The .kbd-off body class (set when the player dismisses the panel) frees the space. */
+  #stage { position: relative; width: min(100%, calc((100vh - 150px - var(--adrow-h, 0px)) * 4 / 3)); aspect-ratio: 4 / 3; background: #000;
+    border-radius: 12px; overflow: hidden; box-shadow: 0 30px 80px rgba(0, 0, 0, .55); }
+  @media (min-width: 1120px) {
+    body:not(.kbd-off) #stage { width: min(calc(100% - 440px), calc((100vh - 150px - var(--adrow-h, 0px)) * 4 / 3)); }
+    body.ads-row:not(.playing) #adrow.on { display: flex; }
+  }
+  /* Desktop ads row under the stage: as wide as the stage (units at its ends) or as wide as its units, centred;
+     the ads script sizes it and sets --adrow-h (the room the stage leaves for it), 0 while the game runs */
+  body.playing { --adrow-h: 0px; }
+  /* Wide windows (the ads script sets body.ads-wide at 1700x900 and up, landing only): the left column holds the
+     160x600 with the 728x90 under it, the right column the controls panel with the 300x250 under it, and the
+     stage sits between them; nothing under the stage. While the game runs the columns go back to normal. */
+  @media (min-width: 1900px) {
+    /* only the stage moves over (its margins reserve the columns); the footer keeps the full width */
+    body.ads-wide:not(.playing) #stage, body.ads-wide:not(.playing):not(.kbd-off) #stage {
+      width: min(calc(100% - 1126px), calc((100vh - 150px) * 4 / 3)); margin-left: 784px; margin-right: 342px; }
+    /* the left column is two stacked units, not one big framed box: no frame, units left-aligned */
+    body.ads-wide:not(.playing) #promo { top: 14px; transform: none; width: 756px; background: none; border-color: transparent;
+      box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    body.ads-wide:not(.playing) #promo .promo-head { width: 160px; }
+    body.ads-wide:not(.playing) #promo iframe { margin: 0; }
+    body.ads-wide:not(.playing) #kbd { top: 14px; transform: none; max-height: calc(100vh - 330px); }
+    body.ads-wide:not(.playing) #adbox.on { display: block; }
+  }
+  body.playing #promo .ad-unit.lead { display: none; }
+  #promo .ad-unit + .ad-unit { margin-top: 12px; }
+  #adbox { display: none; position: fixed; right: 14px; bottom: 14px; z-index: 2; width: 300px; padding: 10px 14px 14px;
+    border: 1px solid var(--line); border-radius: var(--radius); background: rgba(10, 18, 12, .78);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 20px 50px rgba(0, 0, 0, .5); }
+  #adbox iframe { display: block; border: 0; background: transparent; }
+  #adrow { display: none; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: nowrap;
+    min-width: max-content; margin: 0 auto; padding: 14px 0 0; box-sizing: border-box; }
+  #adrow .ad-unit { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  #adrow .ad-unit:only-child { margin: 0 auto; }
+  #adrow .ad-tag, #admob .ad-tag, #adbox .ad-tag { display: block; text-align: center; font: 600 9px/1 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--faint); }
+  #adrow iframe { display: block; border: 0; background: transparent; }
+  canvas { width: 100%; height: 100%; display: block; cursor: none; }
+  .hidden { display: none !important; }
+
+  /* the launcher: a floodlit pitch behind the menus */
+  #panel { position: absolute; inset: 0; overflow: auto; display: grid; place-items: center; padding: 28px;
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(255, 255, 255, .10), transparent 60%),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, .025) 0 9%, transparent 9% 18%),
+      radial-gradient(140% 120% at 50% 110%, #123d22 0%, #0b2414 45%, #060d08 100%); }
+  /* The game poster fills the landing backdrop; if poster.jpg is missing the whole wrap removes itself
+     (onerror) and the gradient above shows instead. A scrim keeps the title and loading text readable. */
+  #poster-wrap { position: absolute; inset: 0; z-index: 0; }
+  /* The poster is a 640-wide portrait image, so it's never shown sharp (it would upscale and pixelate on any
+     wide screen). Instead it's a heavily blurred ambient backdrop — the colour and shape of the art without
+     its resolution — which stays clean at every size, like the frosted artwork backdrops in Apple Music/TV. */
+  #poster-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    object-position: center 18%; filter: blur(2px) brightness(.84) saturate(1.1); transform: scale(1.03); }
+  #poster-wrap .scrim { position: absolute; inset: 0; background:
+      radial-gradient(54% 46% at 50% 58%, rgba(2, 5, 3, .52), rgba(2, 5, 3, 0) 72%),
+      linear-gradient(rgba(4, 7, 5, .34), rgba(5, 9, 6, .12) 30%, rgba(5, 9, 6, .18) 62%, rgba(4, 7, 5, .5)); }
+  #panel .view, #madeby { position: relative; z-index: 1; }
+  .brand { text-shadow: 0 2px 18px rgba(0, 0, 0, .7), 0 1px 3px rgba(0, 0, 0, .85); }
+  #status { text-shadow: 0 1px 10px rgba(0, 0, 0, .85); }
+  .view { width: min(100%, 560px); text-align: center; animation: rise .25s ease-out; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  @media (prefers-reduced-motion: reduce) { .view { animation: none; } }
+
+  .brand { margin: 0 auto 10px; font-size: 34px; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
+  .tagline { margin: 0 0 30px; color: var(--muted); }
+  .small { font-size: 13px; color: var(--faint); }
+  p { margin: 8px 0; }
+
+  /* home: the two big choices */
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; justify-content: center; }
+  .choices:has(> .choice.hidden) { grid-template-columns: min(100%, 360px); }
+  @media (max-width: 520px) { .choices { grid-template-columns: 1fr; } }
+  .choice { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 18px; text-align: center;
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--fg); font: inherit;
+    cursor: pointer; transition: transform .12s ease, background .12s ease, border-color .12s ease; }
+  .choice:hover { transform: translateY(-2px); background: var(--card-hi); border-color: rgba(255, 255, 255, .22); }
+  .choice:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 2px; }
+  .choice svg { width: 30px; height: 30px; color: var(--accent); }
+  .choice b { font-size: 18px; }
+  .choice span { color: var(--muted); font-size: 14px; }
+
+  /* buttons and fields */
+  button { font: inherit; cursor: pointer; border-radius: 10px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 20px; border: 0;
+    background: var(--accent); color: #04110a; font-weight: 700; transition: background .12s ease; }
+  .btn:hover { background: var(--accent-hi); }
+  .btn:disabled { opacity: .45; cursor: default; background: var(--accent); }
+  .btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 600; }
+  .btn.ghost:hover { background: var(--card-hi); }
+  .back { position: absolute; top: 16px; left: 16px; padding: 6px 12px; border: 0; background: transparent; color: var(--muted); }
+  .back:hover { color: var(--fg); }
+  input, select { font: inherit; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; min-width: 0; }
+  input::placeholder { color: var(--faint); }
+  label.field { display: grid; gap: 6px; text-align: left; font-size: 13px; color: var(--muted); }
+
+  .card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); text-align: left; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .stack { display: grid; gap: 14px; }
+  .row { display: flex; gap: 10px; }
+  .row > input { flex: 1; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--faint); font-size: 13px; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  #np-code { text-transform: uppercase; letter-spacing: .15em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  details { margin-top: 12px; color: var(--muted); font-size: 13px; }
+  details summary { cursor: pointer; width: fit-content; }
+  details label { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  details select { flex: 1; padding: 7px 10px; }
+  .msg { min-height: 1.5em; color: #f2b8a8; font-size: 14px; }
+
+  /* lobby */
+  .code { font: 800 clamp(30px, 6vw, 42px)/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; margin: 6px 0 2px; }
+  .players { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .players li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--field); text-align: left; }
+  .players li.empty { color: var(--faint); border: 1px dashed var(--line); background: transparent; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; font-weight: 700;
+    background: #1d5a33; color: #d8f5e2; }
+  .players .who { flex: 1; min-width: 0; }
+  .players .who b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .players .who small { color: var(--faint); }
+  .tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px;
+    background: var(--card-hi); color: var(--muted); }
+  .spinner { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line);
+    border-top-color: var(--accent); animation: spin .9s linear infinite; vertical-align: -1px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(1turn); } }
+
+  /* loading */
+  progress { width: min(100%, 320px); height: 8px; margin-top: 14px; appearance: none; border: 0; border-radius: 99px;
+    overflow: hidden; background: var(--field); }
+  progress::-webkit-progress-bar { background: var(--field); }
+  progress::-webkit-progress-value { background: var(--accent); border-radius: 99px; }
+  progress::-moz-progress-bar { background: var(--accent); }
+  #status { font-variant-numeric: tabular-nums; color: var(--muted); max-width: 52ch; margin-inline: auto; }
+  #eta { margin: 8px 0 0; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* Phone fullscreen recovery and enlarged subtitles for touch devices. */
+  #subcap { position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box; padding: 2px 5px;
+    font: 600 16px/1.22 "Avenir Next Condensed", "Roboto Condensed", "Arial Narrow", sans-serif-condensed, sans-serif;
+    font-stretch: condensed; letter-spacing: .01em; color: #e8e8e8; text-align: left; }
+  #subcap.band { background: #000; }
+  #subcap.panel { background: rgba(4, 22, 6, .93); border: 1px solid rgba(70, 200, 90, .7); }
+  /* fullscreen: the stage fills the screen and the game letterboxes itself inside the canvas */
+  #stage:fullscreen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+  #stage:-webkit-full-screen { width: 100vw; height: 100vh; aspect-ratio: auto; border-radius: 0; }
+  #fs { position: absolute; right: 12px; bottom: 12px; z-index: 2; width: 40px; height: 40px; display: grid; place-items: center;
+    padding: 0; border: 1px solid rgba(255, 255, 255, .18); border-radius: 10px; background: rgba(0, 0, 0, .55); color: #fff;
+    backdrop-filter: blur(4px); opacity: 0; transition: opacity .25s ease; }
+  #fs svg { width: 20px; height: 20px; }
+  #stage.awake #fs, #fs:focus-visible { opacity: 1; }
+  #fs:hover { background: rgba(0, 0, 0, .75); }
+  #fstip, #ctltip, #locktip { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2; padding: 6px 14px; border-radius: 99px;
+    background: rgba(0, 0, 0, .65); color: #fff; font-size: 13px; pointer-events: none; transition: opacity .4s ease; white-space: nowrap; }
+  #ctltip { opacity: 0; }
+  #soundtip { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 2; padding: 6px 14px; border-radius: 99px;
+    background: rgba(0, 0, 0, .65); color: #fff; font-size: 13px; pointer-events: none; }
+  /* Re-enter fullscreen on phones/tablets: the game starts fullscreen, but if the player leaves it (system
+     back / swipe) the desktop corner button is hidden on touch, so this pill reappears to get back in. */
+  #refull { position: absolute; left: 50%; top: calc(10px + env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+    z-index: 6; display: none; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 99px;
+    border: 1px solid rgba(255, 255, 255, .25); background: rgba(8, 14, 10, .72); color: #fff; font-weight: 600; font-size: 13.5px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+  #refull svg { width: 16px; height: 16px; }
+  body.touch.playing:not(.fs) #refull { display: inline-flex; }
+  kbd { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 6px; border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .08); }
+  #netstatus { position: absolute; top: 10px; right: 10px; padding: 4px 10px; border-radius: 99px; background: rgba(0, 0, 0, .6);
+    color: #fff; font: 12px/1.5 ui-sans-serif, system-ui, sans-serif; pointer-events: none; backdrop-filter: blur(4px); }
+  #netstatus.bad { background: rgba(170, 20, 20, .88); }
+
+  /* keyboard cheat sheet: shows beside the stage when the viewport has room, because in-game prompts
+     use controller glyphs (triangle/circle/×/square, L1, R1) that keyboard players would otherwise have
+     to guess at. Hidden in fullscreen, on narrow viewports and by choice (remembered in localStorage). */
+  #kbd { position: fixed; top: 50%; right: 14px; transform: translateY(-50%); z-index: 2; max-height: calc(100vh - 28px); overflow-y: auto;
+    width: 204px; max-height: calc(100vh - 24px); overflow: auto;
+    padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: rgba(10, 18, 12, .78); color: var(--fg); font-size: 13px; line-height: 1.45;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .5); display: none; }
+  @media (min-width: 1120px) {
+    body:not(.kbd-off) #stage:not(:fullscreen) ~ #kbd { display: block; }
+    body.kbd-off #stage:not(:fullscreen) ~ #kbd-show { display: grid; }
+  }
+  #kbd .kbd-head { display: flex; justify-content: space-between; align-items: center;
+    margin: -4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  #kbd .kbd-head b { font-size: 13px; letter-spacing: .02em; }
+  #kbd-close { background: transparent; border: 0; color: var(--muted); font-size: 20px; line-height: 1;
+    padding: 0 4px; cursor: pointer; border-radius: 6px; }
+  #kbd-close:hover { color: var(--fg); background: var(--card-hi); }
+  #kbd h3 { font: 600 11px/1.4 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted); margin: 12px 0 4px; }
+  #kbd h3:first-of-type { margin-top: 0; }
+  #kbd .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+    padding: 4px 0; }
+  #kbd .label { color: var(--muted); font-size: 12.5px; }
+  #kbd .keys { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end;
+    color: var(--muted); font-size: 11.5px; }
+  #kbd kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 6px;
+    border-radius: 5px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .07);
+    color: var(--fg); white-space: nowrap; }
+  #kbd .note { color: var(--faint); font-size: 11.5px; margin: 4px 0 0; }
+  #kbd .kbd-rebind { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 8px;
+    border-radius: 5px; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .07);
+    color: var(--fg); white-space: nowrap; cursor: pointer; min-width: 44px; text-align: center; }
+  #kbd .kbd-rebind:hover { background: rgba(255, 255, 255, .16); border-color: rgba(255, 255, 255, .4); }
+  #kbd .kbd-rebind.capturing { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #kbd select { font: 600 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 4px; border-radius: 5px; max-width: 132px;
+    border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .08); color: var(--fg); }
+  #kbd select option { background: #0f1a13; color: var(--fg); }
+  #kbd .kbd-range { display: block; width: 100%; box-sizing: border-box; accent-color: var(--accent); margin: 0 0 6px; }
+  #kbd .kbd-preset { margin: 2px 0 6px; }
+  #kbd .kbd-preset button { padding: 6px 4px; font-size: 11px; }
+  #kbd .kbd-note { margin: 0 0 4px; color: var(--faint); font-size: 11px; line-height: 1.4; }
+  #kbd output { color: var(--fg); font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  #kbd .kbd-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+  #kbd .kbd-foot .small { color: var(--faint); font-size: 11px; line-height: 1.35; }
+  #kbd .kbd-foot .btn.ghost { padding: 5px 10px; font-size: 11px; white-space: nowrap; }
+  #kbd-show { position: fixed; top: 50%; right: 16px; transform: translateY(-50%); z-index: 2;
+    width: 38px; height: 38px; place-items: center; padding: 0;
+    background: rgba(10, 18, 12, .78); color: var(--muted); border: 1px solid var(--line);
+    border-radius: 10px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: none; }
+  #kbd-show:hover { color: var(--fg); background: rgba(10, 18, 12, .92); }
+  #kbd-show svg { width: 18px; height: 18px; }
+  /* Left-gutter ad (mirrors #kbd on the right): a 160x600 unit, filled by the ads script at the end.
+     Shown only on viewports wide enough to have the gutter, never in fullscreen or on phones/tablets. */
+  #promo { position: fixed; top: 50%; left: 14px; transform: translateY(-50%); z-index: 2;
+    width: 204px; max-height: calc(100vh - 24px); overflow: auto;
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius);
+    background: rgba(10, 18, 12, .78); color: var(--fg); font-size: 13px; line-height: 1.45;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .5); display: none; }
+  /* shown only once the ads script has put a unit in it (.on): browsers without credentialless iframes never see it */
+  @media (min-width: 1120px) { #stage:not(:fullscreen) ~ #promo.on { display: block; } }
+  #promo .promo-head { display: flex; justify-content: space-between; align-items: center;
+    margin: -4px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  #promo .promo-head b { font-size: 13px; letter-spacing: .02em; }
+  #promo .promo-tag { font: 600 9px/1 ui-sans-serif, system-ui, sans-serif; text-transform: uppercase;
+    letter-spacing: .1em; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 3px 5px; }
+  #promo iframe, #admob iframe { display: block; border: 0; margin: 0 auto; background: transparent; }
+  /* Ads under the landing views (never over the game: #panel is hidden while it runs) — see the ads script at the end */
+  /* wider than the 560px view: centred on it, so a 728-wide unit hangs over both sides of the view's box */
+  #admob { display: none; position: relative; z-index: 1; margin-top: 22px; width: max-content; max-width: 100vw; margin-left: 50%;
+    transform: translateX(-50%); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #admob iframe + iframe { margin-top: 10px; }
+  #admob .ad-tag, #adbox .ad-tag { margin-bottom: 5px; }
+  #admob.on { display: block; }
+.ig-small { margin: 0 !important; font-size: 12px !important; }
+  .ig-small a { color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
+  @media (max-height: 460px) { .ig-card { padding: 14px 18px 12px; } .ig-avatar { width: 42px; height: 42px; margin-bottom: 8px; } .ig-card h2 { font-size: 18px; } .ig-card p { margin-bottom: 10px; font-size: 13px; } .ig-btn { padding: 9px 14px; margin-bottom: 8px; } }
+
+  /* phones and tablets (touch.js): the stage fills the screen, the game letterboxes itself inside the
+     canvas, and the controls sit over it (mostly in the side bars a wide phone leaves) */
+  .mob { display: none; }
+  body.touch .desk, body.coarse .desk { display: none; }
+  body.touch .mob, body.coarse .mob { display: inline; }
+  body.coarse main { padding: 0; }
+  body.coarse .credit, body.coarse #kbd, body.coarse #kbd-show, body.coarse #promo, body.touch #fs { display: none !important; }
+  body.coarse #stage, body.coarse #stage:fullscreen { position: fixed; inset: 0; width: auto; height: auto; aspect-ratio: auto;
+    border-radius: 0; box-shadow: none; }
+  /* no page fullscreen (iPhone Safari): the stage keeps the largest viewport's size, so the browser's toolbars
+     sliding in over the page (a swipe from the top edge, as when looking down) don't resize the game's picture */
+  body.nofs #stage { inset: auto; top: 0; left: 0; width: 100vw; height: 100vh; height: 100lvh; }
+  #tfailed { position: absolute; left: 50%; top: 7%; transform: translateX(-50%); z-index: 4; pointer-events: none;
+    max-width: 92%; padding: 8px 14px; border-radius: 8px; background: rgba(0, 0, 0, .78); color: #fff;
+    font: 600 14px/1.3 ui-sans-serif, system-ui, sans-serif; text-align: center; }
+  #rotate { display: none; }
+  @media (orientation: portrait) {
+    body.touch #rotate { display: grid; place-items: center; position: absolute; inset: 0; z-index: 5; padding: 24px;
+      background: #000; color: #fff; font-size: 17px; text-align: center; }
+  }
+  #touch { position: absolute; inset: 0; z-index: 3; touch-action: none; user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; }
+  #touch .t-look { position: absolute; inset: 0; }
+  /* Layout in the style of mobile shooters (PUBG): the stick bottom-left with WALK above it and a second FIRE
+     above-right of it; a big FIRE bottom-right with JUMP above, CROUCH / SCOPE to its left, USE / RELOAD further
+     in, PEEK up the right edge, WEAPON at the bottom centre; MENU, MAP top-left and the gear, BINO, +/- top-right.
+     --u is the button unit, --f the fire button, --g the gap, --sr/--sl the safe-area margins. */
+  /* --k scales every control (the layout editor's Size), --a is their opacity; --sk the stick, --tb the top bar. */
+  #touch { --k: 1; --a: 1; --u: calc(clamp(48px, 14vmin, 64px) * var(--k)); --f: calc(clamp(80px, 24vmin, 108px) * var(--k)); --g: 10px;
+    --sk: calc(clamp(120px, 36vmin, 170px) * var(--k)); --tb: calc(clamp(44px, 12vmin, 56px) * var(--k));
+    --sr: max(18px, env(safe-area-inset-right)); --sl: max(18px, env(safe-area-inset-left)); --sb: 20px;
+    --st: max(10px, env(safe-area-inset-top)); }
+  #touch.off { display: none; }
+  #touch .t-stick { position: absolute; left: var(--sl); bottom: var(--sb);
+    width: calc(var(--sk) * var(--bk, 1)); aspect-ratio: 1; border-radius: 50%; opacity: var(--a);
+    background: rgba(255, 255, 255, .08); border: 2px solid rgba(255, 255, 255, .22); }
+  #touch .t-knob { position: absolute; inset: 30%; border-radius: 50%; background: rgba(255, 255, 255, .35);
+    border: 2px solid rgba(255, 255, 255, .5); pointer-events: none; }
+  /* the sprint lock: a running figure well above the stick with a dotted line up to it, shown while the stick
+     is pushed forward; the thumb sliding onto it locks running (touch.js), and it stays lit while locked */
+  #touch .t-lock { position: absolute; left: 50%; top: calc(-1 * var(--sk) * .8); transform: translateX(-50%); width: calc(var(--sk) * .5); height: calc(var(--sk) * .5);
+    display: grid; place-items: center; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .45); background: rgba(0, 0, 0, .5);
+    opacity: 0; transition: opacity .15s ease, transform .15s ease; pointer-events: none; }
+  #touch .t-lock span { font-size: calc(var(--sk) * .26); line-height: 1; filter: grayscale(1) brightness(1.7); }
+  #touch .t-stick::before { content: ""; position: absolute; left: 50%; top: calc(-1 * var(--sk) * .3); height: calc(var(--sk) * .3);
+    border-left: 3px dotted rgba(255, 255, 255, .55); opacity: 0; transition: opacity .15s ease; }
+  #touch .t-stick.fwd .t-lock, #touch .t-stick.fwd::before { opacity: .85; }
+  #touch .t-stick.locked .t-lock, #touch .t-stick.locked::before { opacity: 1; }
+  #touch .t-stick.locked .t-lock { background: rgba(52, 184, 102, .65); border-color: rgba(120, 230, 160, .95); transform: translateX(-50%) scale(1.1); }
+  #touch .t-stick.locked { border-color: rgba(120, 230, 160, .6); }
+  #touch .t-stick.locked .t-knob { background: rgba(52, 184, 102, .55); }
+  #touch .t-btn { position: absolute; display: grid; place-items: center; align-content: center; padding: 0;
+    width: calc(var(--u) * var(--bk, 1)); aspect-ratio: 1; border-radius: 50%; touch-action: none; opacity: var(--a);
+    border: 2px solid rgba(255, 255, 255, .3); background: rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .9);
+    font: 700 clamp(9px, 2.6vmin, 11px)/1.1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .03em;
+    transition: opacity .25s ease; }
+  #touch .t-btn small { font-size: .8em; font-weight: 600; opacity: .7; }
+  #touch .t-btn.on { background: rgba(52, 184, 102, .55); border-color: rgba(120, 230, 160, .8); }
+  #touch.menus .t-btn:not(.b-menu):not(.b-gear), #touch.menus .t-stick { opacity: calc(var(--a) * .35); }
+  /* the layout editor: the overlay over everything (the boot cover too), every control draggable, a bar on top */
+  #touch.edit { display: block; z-index: 8; background: rgba(0, 0, 0, .6); }
+  #touch.edit .t-btn, #touch.edit .t-stick, #touch.edit.menus .t-btn:not(.b-menu):not(.b-gear), #touch.edit.menus .t-stick {
+    opacity: var(--a); outline: 2px dashed rgba(255, 255, 255, .55); outline-offset: 3px; transition: none; }
+  #touch .t-edit { display: none; position: absolute; left: 50%; top: calc(var(--st) + 4px); transform: translateX(-50%); z-index: 1;
+    width: min(96%, 560px); padding: 8px 12px; border-radius: 12px; background: rgba(10, 18, 12, .96); border: 1px solid rgba(255, 255, 255, .18);
+    color: var(--fg); font: 12px/1.3 ui-sans-serif, system-ui, sans-serif; display: none; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: center; }
+  #touch.edit .t-edit { display: flex; }
+  #touch .t-edit b { width: 100%; text-align: center; font-size: 12.5px; }
+  #touch .t-edit label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  #touch .t-edit input[type=range] { width: 110px; accent-color: var(--accent); margin: 0; touch-action: pan-x; }
+  #touch .t-edit button { padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .25); background: transparent; color: var(--fg);
+    font: 600 12px ui-sans-serif, system-ui, sans-serif; }
+  #touch .t-edit .te-done { background: var(--accent); color: #04140a; border-color: var(--accent); }
+  #touch.edit .t-look { display: none; }
+  #touch.edit .t-btn.sel, #touch.edit .t-stick.sel { outline: 3px solid var(--accent-hi); outline-offset: 3px; }
+  #touch .t-edit .te-one .te-sel { color: var(--accent-hi); font-weight: 700; }
+  /* right cluster */
+  #touch .b-fire { width: calc(var(--f) * var(--bk, 1)); right: var(--sr); bottom: var(--sb);
+    background: rgba(210, 58, 47, .4); border-color: rgba(255, 150, 140, .5); font-size: clamp(12px, 3.4vmin, 15px); }
+  #touch .b-jump { right: calc(var(--sr) + (var(--f) - var(--u)) / 2); bottom: calc(var(--sb) + var(--f) + var(--g)); }
+  #touch .b-peek { right: calc(var(--sr) + (var(--f) - var(--u)) / 2); bottom: calc(var(--sb) + var(--f) + 2 * var(--g) + var(--u)); }
+  #touch .b-crouch { right: calc(var(--sr) + var(--f) + var(--g)); bottom: var(--sb); }
+  #touch .b-scope { --s: calc(var(--u) * 1.15); width: calc(var(--s) * var(--bk, 1)); right: calc(var(--sr) + var(--f) + var(--g) - (var(--s) - var(--u)) / 2);
+    bottom: calc(var(--sb) + var(--u) + var(--g) + 6px); border-color: rgba(255, 255, 255, .5); font-size: clamp(8px, 2.3vmin, 10px); }
+  #touch .b-scope .eye { display: block; width: 46%; height: 46%; border-radius: 50%; border: 2.5px solid currentColor; position: relative; margin-bottom: 2px; }
+  #touch .b-scope .eye::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: currentColor; }
+  #touch .b-scope.on { background: rgba(69, 150, 220, .55); border-color: rgba(140, 200, 255, .9); }
+  #touch .b-use { right: calc(var(--sr) + var(--f) + 2 * var(--g) + var(--u)); bottom: var(--sb); }
+  #touch .b-reload { right: calc(var(--sr) + var(--f) + 2 * var(--g) + var(--u)); bottom: calc(var(--sb) + var(--u) + var(--g) + 6px); }
+  #touch .b-weapon { left: 50%; transform: translateX(-50%); bottom: var(--sb); }
+  /* left cluster */
+  /* WALK sits above the second FIRE, to the right of the stick: the lane above the stick is the sprint lock's */
+  #touch .b-walk { left: calc(var(--sl) + var(--sk) + var(--g) + var(--u) * .1); bottom: calc(var(--sb) + var(--sk) * .55 + var(--u) * 1.2 + var(--g)); }
+  #touch .b-fire2 { --s: calc(var(--u) * 1.2); width: calc(var(--s) * var(--bk, 1)); left: calc(var(--sl) + var(--sk) + var(--g));
+    bottom: calc(var(--sb) + var(--sk) * 0.55); background: rgba(210, 58, 47, .3); border-color: rgba(255, 150, 140, .45); }
+  /* top bar */
+  #touch .b-bino, #touch .b-zin, #touch .b-zout, #touch .b-map, #touch .b-menu, #touch .b-gear {
+    top: var(--st); width: calc(var(--tb) * var(--bk, 1)); }
+  #touch .b-menu { left: max(12px, env(safe-area-inset-left)); }
+  #touch .b-map { left: calc(max(12px, env(safe-area-inset-left)) + var(--tb) + 6px); }
+  #touch .b-gear { right: max(12px, env(safe-area-inset-right)); font-size: clamp(16px, 4.5vmin, 20px); }
+  #touch .b-bino { right: calc(max(12px, env(safe-area-inset-right)) + var(--tb) + 6px); }
+  #touch .b-zin { right: calc(max(12px, env(safe-area-inset-right)) + 2 * (var(--tb) + 6px)); font-size: clamp(16px, 4.5vmin, 20px); }
+  #touch .b-zout { right: calc(max(12px, env(safe-area-inset-right)) + 3 * (var(--tb) + 6px)); font-size: clamp(16px, 4.5vmin, 20px); }
+  /* settings sheet and the first-start guide (touch.js); both live inside #stage so they show in fullscreen */
+  #tsettings, #tguide { position: absolute; inset: 0; z-index: 7; display: grid; place-items: center; padding: 12px;
+    background: rgba(0, 0, 0, .55); -webkit-user-select: none; user-select: none; }
+  #tsettings.hidden, #tguide.hidden { display: none; }
+  #tguide { z-index: 8; }
+  .ts-card, .tg-card { width: min(100%, 440px); max-height: 100%; overflow-y: auto; box-sizing: border-box; padding: 14px 16px;
+    border-radius: 14px; background: rgba(10, 18, 12, .96); border: 1px solid rgba(255, 255, 255, .14); color: var(--fg);
+    font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; box-shadow: 0 16px 48px rgba(0, 0, 0, .6); }
+  .ts-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ts-head b { font-size: 14px; }
+  .ts-close { background: transparent; border: 0; color: var(--muted); font-size: 22px; line-height: 1; padding: 0 4px; }
+  .ts-row { display: block; margin: 8px 0; }
+  @media (max-height: 420px) { .ts-row { margin: 5px 0; } .ts-head { margin-bottom: 4px; } .ts-foot { margin-top: 6px; } .ts-card { padding: 10px 14px; } }
+  .ts-row > span { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; margin-bottom: 3px; }
+  .ts-row output { color: var(--fg); font-variant-numeric: tabular-nums; }
+  .ts-row input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
+  .ts-seg, .seg { display: flex; gap: 0; border: 1px solid rgba(255, 255, 255, .22); border-radius: 8px; overflow: hidden; }
+  .ts-seg button, .seg button { flex: 1; padding: 7px 4px; border: 0; border-radius: 0; background: transparent; color: var(--muted); font: 600 12px ui-sans-serif, system-ui, sans-serif; }
+  .ts-seg button.on, .seg button.on { background: var(--accent); color: #04140a; }
+  /* the landing screen: one big Play, the device choice under it, two quiet links, one footnote */
+  .play-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: min(100%, 300px); margin: 6px auto 0;
+    padding: 15px 24px; border: 0; border-radius: 16px; background: var(--accent); color: #04110a; font: 700 18px/1 ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: .01em; box-shadow: 0 12px 30px rgba(52, 184, 102, .28); transition: transform .12s ease, background .12s ease, box-shadow .12s ease; }
+  .play-btn:hover { background: var(--accent-hi); transform: translateY(-1px); box-shadow: 0 16px 36px rgba(52, 184, 102, .34); }
+  .play-btn:active { transform: translateY(0); }
+  .play-btn svg { width: 22px; height: 22px; }
+  .device { margin: 22px auto 0; width: min(100%, 300px); }
+  .device .seg { background: rgba(0, 0, 0, .3); border-color: rgba(255, 255, 255, .14); border-radius: 10px; }
+  .device .seg button { padding: 8px 6px; font-size: 12.5px; }
+  .home-links { display: flex; justify-content: center; align-items: center; gap: 22px; margin-top: 18px; }
+  .link-btn { background: transparent; border: 0; padding: 4px 2px; color: var(--muted); font: 500 13px ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none; cursor: pointer; }
+  .link-btn:hover { color: var(--fg); }
+  .home-foot { margin: 26px 0 0; color: var(--faint); font-size: 12px; }
+  .home-foot b { color: var(--muted); font-weight: 600; }
+  .ts-note { display: block; color: var(--faint); font-size: 11px; margin-top: 4px; min-height: 1.2em; }
+  .ts-checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .ts-checks label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+  .ts-checks input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
+  .ts-layout { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .06);
+    color: var(--fg); font: 600 12.5px ui-sans-serif, system-ui, sans-serif; text-align: left; }
+  /* set up the controls before the game is ready: on the landing screen and the boot cover (phones) */
+  #home-controls, #boot-controls { display: none; }
+  body.coarse #home-controls { display: inline-block; }
+  body.coarse #boot-controls { display: inline-flex; margin-top: 18px; }
+  #crashnote { margin: 0 auto 16px; max-width: 46ch; padding: 10px 14px; border-radius: 10px; text-align: left; font-size: 13px; line-height: 1.45;
+    background: rgba(210, 58, 47, .18); border: 1px solid rgba(255, 150, 140, .4); color: var(--fg); }
+  .ts-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+  .ts-foot button { padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: var(--fg);
+    font: 600 12px ui-sans-serif, system-ui, sans-serif; }
+  .tg-title { display: block; font-size: 16px; margin-bottom: 8px; }
+  .tg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .tg-grid > div { display: flex; gap: 8px; align-items: flex-start; }
+  .tg-grid i { flex: none; width: 22px; height: 22px; display: grid; place-items: center; font-style: normal; border-radius: 6px;
+    background: rgba(255, 255, 255, .1); color: var(--accent-hi); font-size: 13px; }
+  .tg-grid span { font-size: 12px; line-height: 1.35; color: var(--muted); }
+  .tg-grid span b { color: var(--fg); }
+  .tg-switch { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--fg); }
+  .tg-switch input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .tg-ok { margin-top: 10px; width: 100%; padding: 9px; }
+  @media (max-height: 420px) { .tg-grid { gap: 3px 12px; } .tg-grid span { font-size: 11px; } .tg-card { padding: 10px 14px; } .tg-ok { margin-top: 8px; padding: 7px; } }
+
+  /* --- loading & boot flourish --- */
+  /* a faint green scanline drifts down the poster so the landing screen feels alive while files download */
+  #poster-wrap .scan { position: absolute; left: 0; right: 0; height: 36%; z-index: 1; pointer-events: none;
+    background: linear-gradient(rgba(69, 207, 121, 0), rgba(69, 207, 121, .06) 55%, rgba(69, 207, 121, 0));
+    animation: scan 7s linear infinite; }
+  @keyframes scan { from { transform: translateY(-40%); } to { transform: translateY(300%); } }
+  @media (prefers-reduced-motion: reduce) { #poster-wrap .scan { display: none; } }
+
+  /* rotating "intel" tips, shown on the download screen and the boot overlay so the wait isn't a blank bar */
+  .tips { margin: 22px auto 0; max-width: 48ch; min-height: 2.8em; display: flex; gap: 10px;
+    align-items: baseline; justify-content: center; text-align: left; transition: opacity .35s ease; }
+  .tips .tip-eyebrow { flex: none; font: 700 10px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .18em; color: var(--accent-hi); border: 1px solid rgba(69, 207, 121, .4);
+    border-radius: 4px; padding: 1px 6px; text-shadow: none; }
+  .tips .tip-text { color: var(--fg); font-size: 13.5px; line-height: 1.5; text-shadow: 0 1px 8px rgba(0, 0, 0, .85); }
+
+  /* boot overlay: covers the canvas from the Play click to the first rendered frame. The first start loads
+     a whole mission into memory — a blank black minute — so this keeps a radar, a phase line and tips up. */
+  #booting { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 24px;
+    text-align: center; color: var(--fg);
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(52, 184, 102, .10), transparent 55%),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, .02) 0 9%, transparent 9% 18%),
+      radial-gradient(140% 120% at 50% 110%, #123d22 0%, #0b2414 45%, #060d08 100%); }
+  #booting .boot-inner { position: relative; width: min(100%, 460px); animation: rise .3s ease-out; }
+  #booting .boot-title { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: .02em;
+    text-transform: uppercase; text-shadow: 0 2px 18px rgba(0, 0, 0, .7); }
+  #booting .boot-phase { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #booting .radar { position: relative; width: 92px; height: 92px; margin: 0 auto 22px; border-radius: 50%;
+    border: 1px solid rgba(69, 207, 121, .35); background: radial-gradient(circle, rgba(52, 184, 102, .10), transparent 70%); }
+  #booting .radar::before, #booting .radar::after { content: ""; position: absolute; border-radius: 50%;
+    border: 1px solid rgba(69, 207, 121, .18); }
+  #booting .radar::before { inset: 0; }
+  #booting .radar::after { inset: 30%; }
+  #booting .radar .sweep { position: absolute; inset: -1px; border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(69, 207, 121, .55), rgba(69, 207, 121, 0) 42%);
+    animation: radar 2.4s linear infinite; }
+  #booting .radar .ping { position: absolute; top: 22%; left: 62%; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent-hi); box-shadow: 0 0 10px var(--accent-hi); animation: ping 2.4s ease-out infinite; }
+  @keyframes radar { to { transform: rotate(1turn); } }
+  @keyframes ping { 0%, 55% { opacity: 0; } 62% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(2.3); } }
+  #booting .tips { margin-top: 24px; }
+  @media (prefers-reduced-motion: reduce) {
+    #booting .radar .sweep, #booting .radar .ping, #booting .boot-inner { animation: none; }
+  }
+
+  .game-toolbar{width:min(100%,calc((100vh - 150px)*4/3));display:flex;justify-content:flex-end;align-items:center;margin:0 auto 8px;position:relative;z-index:4}
+  .toolbar-actions{display:flex;justify-content:flex-end;gap:8px}
+  .toolbar-actions button{border:1px solid var(--line);background:rgba(10,18,12,.92);color:var(--fg);border-radius:9px;padding:8px 13px;font-weight:650}
+  .toolbar-actions button:hover{background:var(--card-hi);border-color:rgba(255,255,255,.28)}
+  .launcher-game-logo{display:block;width:clamp(84px,14vw,132px);height:clamp(84px,14vw,132px);object-fit:contain;margin:0 auto 12px;filter:drop-shadow(0 8px 22px rgba(0,0,0,.55))}
+  #kbd{position:fixed!important;inset:0!important;z-index:100!important;width:100%!important;max-width:none!important;max-height:none!important;height:100dvh!important;margin:0!important;padding:24px!important;border:0!important;border-radius:0!important;transform:none!important;background:rgba(0,0,0,.72)!important;backdrop-filter:blur(8px)!important;display:none!important;overflow:auto!important}
+  #kbd.is-open{display:grid!important;place-items:center!important}
+  #kbd .settings-dialog{width:min(100%,620px);max-height:min(82dvh,760px);overflow:auto;padding:24px;border:1px solid var(--line);border-radius:16px;background:#0b140e;box-shadow:0 24px 80px rgba(0,0,0,.65)}
+  #kbd-binds,#kbd .kbd-foot{display:none!important}
+  #kbd .settings-group{padding:14px 0;border-bottom:1px solid var(--line)}
+  #kbd .settings-group summary{cursor:pointer;color:var(--fg);font-weight:700}
+  #controls-rail{position:static!important;inset:auto!important;transform:none!important;width:min(100%,260px);max-height:none!important;margin:18px 14px 18px auto!important;overflow:visible!important}
+  @media(max-width:1119px){.game-toolbar{width:100%}#controls-rail{display:none}}
+  @media(min-width:1120px){body:not(.kbd-off) #stage:not(:fullscreen) ~ #kbd:not(.is-open){display:none!important}}
+ 
+
+/* Final game-page layout overrides: settings must open outside fullscreen; controls stay in document flow. */
+@media(min-width:801px){
+  html body main#main-content>.game-toolbar{justify-content:flex-end!important}
+  html body main#main-content>.game-toolbar .toolbar-actions{justify-content:flex-end!important;margin-left:auto!important}
+  html body main#main-content>#controls-rail{
+    position:static!important;inset:auto!important;top:auto!important;left:auto!important;right:auto!important;
+    transform:none!important;align-self:start!important;grid-column:2!important;grid-row:2 / span 3!important;
+    display:block!important;width:100%!important;max-height:none!important;overflow:visible!important;margin:0!important;
+  }
+}
+@media(max-width:800px){
+  html body main#main-content>.game-toolbar{justify-content:flex-end!important}
+  html body main#main-content>.game-toolbar .toolbar-actions{width:auto!important;justify-content:flex-end!important;margin-left:auto!important}
+  html body main#main-content>.game-toolbar .toolbar-actions button{flex:0 0 auto!important}
+  html body main#main-content>#controls-rail{position:static!important;inset:auto!important;transform:none!important;display:block!important;max-height:none!important;overflow:visible!important}
+}
+body.settings-open #kbd.is-open,
+body:not(.kbd-off) #stage:not(:fullscreen) ~ #kbd.is-open{
+  display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;
+}
+body.settings-open:before{z-index:99!important}
+#kbd.is-open{z-index:100!important}
+</style>
+<link rel="preload" href="/redesign.css?v=20261101-3" as="style"><link rel="stylesheet" href="/redesign.css?v=20261101-3">
 
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://project-igi.online/#website","url":"https://project-igi.online/","name":"Project IGI Online","inLanguage":"en"},{"@type":"Organization","@id":"https://project-igi.online/#organization","name":"IGI Online Team","url":"https://project-igi.online/"},{"@type":"VideoGame","@id":"https://project-igi.online/#game","name":"Project I.G.I.: I'm Going In","datePublished":"2000","genre":"Tactical first-person shooter","gamePlatform":"Web browser","applicationCategory":"Game","gameMode":"SinglePlayer","author":{"@type":"Organization","name":"Innerloop Studios"},"publisher":{"@type":"Organization","name":"Eidos Interactive"}}]}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://project-igi.online/"},{"@type":"ListItem","position":2,"name":"Play Project I.G.I. Online","item":"https://project-igi.online/play"}]}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is the original Project I.G.I. game included?","acceptedAnswer":{"@type":"Answer","text":"No. This website does not host or distribute the original commercial game files. Import your own legally obtained copy."}},{"@type":"Question","name":"Is this website free to use?","acceptedAnswer":{"@type":"Answer","text":"The website is free to access, with no sign-up or separate installer. You still need to provide your own legally obtained game copy."}},{"@type":"Question","name":"Where are my imported game files stored?","acceptedAnswer":{"@type":"Answer","text":"The browser copies selected files into browser-managed storage for this website on your device. The import flow is not designed to upload the game folder to this site's server. Clearing site data may remove the imported copy."}},{"@type":"Question","name":"Does the original Project I.G.I. have multiplayer?","acceptedAnswer":{"@type":"Answer","text":"No. The original Project I.G.I.: I'm Going In campaign is single-player. This browser project has a separate 1v1 online-room option; that is a browser-project feature, not part of the original game."}},{"@type":"Question","name":"Can I use touch controls and gyroscope aiming?","acceptedAnswer":{"@type":"Answer","text":"The project includes touch controls and gyroscope aiming for compatible mobile devices. Browser support and motion-sensor permissions vary by device."}}]}</script><link rel="stylesheet" href="/home-embed.css?v=20261101-9"><script src="/home-embed.js?v=20261101-9" defer></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://project-igi.online/"},{"@type":"ListItem","position":2,"name":"Home","item":"https://project-igi.online/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is the original Project I.G.I. game included?","acceptedAnswer":{"@type":"Answer","text":"No. This website does not host or distribute the original commercial game files. Import your own legally obtained copy."}},{"@type":"Question","name":"Is this website free to use?","acceptedAnswer":{"@type":"Answer","text":"The website is free to access, with no sign-up or separate installer. You still need to provide your own legally obtained game copy."}},{"@type":"Question","name":"Where are my imported game files stored?","acceptedAnswer":{"@type":"Answer","text":"The browser copies selected files into browser-managed storage for this website on your device. The import flow is not designed to upload the game folder to this site's server. Clearing site data may remove the imported copy."}},{"@type":"Question","name":"Does the original Project I.G.I. have multiplayer?","acceptedAnswer":{"@type":"Answer","text":"No. The original Project I.G.I.: I'm Going In campaign is single-player. This browser project has a separate 1v1 online-room option; that is a browser-project feature, not part of the original game."}},{"@type":"Question","name":"Can I use touch controls and gyroscope aiming?","acceptedAnswer":{"@type":"Answer","text":"The project includes touch controls and gyroscope aiming for compatible mobile devices. Browser support and motion-sensor permissions vary by device."}}]}</script><link rel="stylesheet" href="/igi-theme.css?v=20261101-1">
+<link rel="stylesheet" href="/home-embed.css?v=20261103-1"><script src="/home-embed.js?v=20261103-1" defer></script>
 </head>
-<body class="home-page">
-  <section class="igi-launch-stage" aria-label="Project I.G.I. game">
-    <iframe class="igi-game-frame" id="igi-game-frame" src="https://playigi.com/" title="Project I.G.I. game on PlayIGI" allow="fullscreen; autoplay; gamepad; pointer-lock; clipboard-read; clipboard-write" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="eager"></iframe>
-  </section>
-  <a class="skip-link" href="#main-content">Skip to content</a>
-  <div class="home-content">
-    <header class="home-header" id="site-header">
+<a class="skip-link" href="#main-content">Skip to content</a>
+<header class="home-header" id="site-header">
         <a class="home-brand" href="/" aria-label="Project IGI Online home">
           <img src="/logo.png" alt="" width="112" height="96">
           <span class="home-brand-copy"><strong>Project IGI Online</strong><small>Browser edition // main menu</small></span>
@@ -61,105 +593,257 @@
         </nav>
         <a class="home-header-cta" href="/play">Play Now <span aria-hidden="true">↗</span></a>
       </header>
-    <main id="main-content" class="home-main">
-      <section class="home-about" aria-labelledby="home-title">
-        <p class="about-kicker">MISSION BRIEFING // ABOUT</p>
-        <h1 id="home-title">Project I.G.I.</h1>
-        <p class="about-summary">Enter the world of Project I.G.I.: I'm Going In, the classic tactical stealth shooter released in 2000. This independent browser project lets you experience the game in a compatible browser using your own legally obtained game files.</p>
-        <details class="about-archive"><summary>READ MORE // FULL PROJECT INFORMATION</summary><div class="about-archive-content">
-        <noscript><section class="content-section" aria-label="About this browser edition"><p><strong>Project I.G.I. Browser Edition</strong></p><p>This is an unofficial browser port of Project I.G.I.: I'm Going In (2000). You must import your own legally obtained game files. This website does not host or distribute the original game data.</p><p><a href="/play">Read the browser play guide</a> · <a href="/controls">Controls guide</a> · <a href="/disclaimer">Fan project disclaimer</a></p></section></noscript>
-        <section class="home-hero" aria-labelledby="home-title">
-          <div class="home-hero-copy">
-            <p class="home-kicker"><span class="home-live-dot" aria-hidden="true"></span> Tactical operations // browser edition</p>
-            <div class="home-title-lockup">
-              <img src="/logo.png" alt="" width="112" height="96">
-              <p class="legacy-title">Project I.G.I.</p>
-            </div>
-            <p class="home-hero-subtitle">I'm Going In.</p>
-            <p class="home-hero-description">Return to the field. Explore the Project I.G.I. browser edition, review the controls and prepare your own legally obtained game files before entering the mission.</p>
-            <div class="home-hero-actions">
-              <a class="home-button home-button-primary" href="/play">▶ Open the Play Page</a>
-              <a class="home-button" href="/controls">Field Manual</a>
-            </div>
-            <div class="home-hero-note"><span>Independent fan project</span><span>Bring your own game files</span></div>
-          </div>
-          <figure class="home-hero-visual">
-            <img src="/images/project-igi-gameplay-compound.jpg" alt="Project I.G.I. gameplay view of an outdoor compound" width="800" height="500">
-            <span class="home-hero-stamp">Field camera<br>IGI // 2000</span>
-            <figcaption><span>Archive image // 01</span><span>Area: compound</span></figcaption>
-          </figure>
-        </section>
-
-        <div class="home-statusline" aria-label="Website information">
-          <span>System: <b>Browser edition</b></span>
-          <span>Access: <b>Free website access</b></span>
-          <span>Game data: <b>Supplied by player</b></span>
+<main id="main-content">
+  <!-- GAME: DO NOT EDIT — existing game stage, canvas, overlays and runtime DOM. -->
+  <div id="stage">
+    <canvas id="canvas" width="1024" height="768" tabindex="0"></canvas>
+    <div id="subcap" class="hidden" aria-live="polite"></div>
+    <div id="netstatus" class="hidden"></div>
+    <button id="fs" type="button" aria-hidden="true" tabindex="-1" style="display:none"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fs-icon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <div id="soundtip" class="hidden">Tap the game or press a key to turn on sound</div>
+    <button id="refull" type="button" aria-label="Enter fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>Fullscreen</button>
+    <div id="rotate">Turn your device sideways to play</div>
+    <div id="tguide" class="hidden" role="dialog" aria-label="How to play">
+      <div class="tg-card">
+        <b class="tg-title">How to play</b>
+        <div class="tg-grid">
+          <div><i>✥</i><span><b>Move</b> — the stick on the left. Push forward and slide your thumb up onto the runner to lock running; tap the stick to stop. WALK: tap to walk, tap again to run.</span></div>
+          <div><i>⌖</i><span><b>Aim</b> — swipe anywhere in the middle. Hold either FIRE and drag to aim while shooting.</span></div>
+          <div><i>◎</i><span><b>Scope</b> — tap the eye to snap the sniper scope or binoculars to 4× and back; + / − fine-tune.</span></div>
+          <div><i>⇅</i><span><b>Crouch / jump / peek</b> — around FIRE. Tap CROUCH to crouch, tap again to stand. There is no prone in this game.</span></div>
+          <div><i>⚙</i><span><b>Settings</b> — sensitivity, scope zoom, gyroscope, and Edit layout to drag the buttons where you like. MENU pauses; tap the menu items as usual.</span></div>
+          <div><i>⟲</i><span><b>Gyroscope</b> — turn the phone to fine-aim while scoped, like PUBG. Your browser may ask for motion access.</span></div>
         </div>
+        <label class="tg-switch"><input type="checkbox" id="tg-gyro" checked> Gyroscope aiming while scoped</label>
+        <button type="button" class="tg-ok btn">Let's go</button>
+      </div>
+    </div>
+    <div id="fstip" class="hidden">Press <kbd>Alt</kbd> + <kbd>Enter</kbd> for fullscreen</div>
+    <div id="ctltip" class="hidden"></div>
+    <div id="locktip" class="hidden">Click the game to capture the mouse (full 360° turning)</div>
+    <div id="panel" data-nosnippet>
+      <div id="poster-wrap" aria-hidden="true"><img src="poster.jpg" alt="" onerror="this.closest('#poster-wrap').remove()"><span class="scan"></span><span class="scrim"></span></div>
 
-        <section class="home-section" id="field-archive" aria-labelledby="field-archive-title">
-          <h2 class="home-section-heading" id="field-archive-title">Field archive</h2>
-          <p class="home-section-intro">Reconnaissance views from the Project I.G.I. browser project. Select Play to open the dedicated game page; the homepage stays here as your mission-control hub.</p>
-          <div class="home-gallery">
-            <figure class="home-shot">
-              <img src="/images/project-igi-gameplay-compound.jpg" alt="Project I.G.I. gameplay scene showing a compound" width="800" height="500" loading="lazy">
-              <figcaption><b>Field image 01</b><span>Compound</span></figcaption>
-            </figure>
-            <figure class="home-shot">
-              <img src="/images/project-igi-gameplay-interior.jpg" alt="Project I.G.I. gameplay scene showing an interior" width="800" height="500" loading="lazy">
-              <figcaption><b>Field image 02</b><span>Interior</span></figcaption>
-            </figure>
-            <figure class="home-shot">
-              <img src="/images/project-igi-gameplay-yard.jpg" alt="Project I.G.I. gameplay scene showing an outdoor yard" width="800" height="500" loading="lazy">
-              <figcaption><b>Field image 03</b><span>Yard</span></figcaption>
-            </figure>
+      <!-- loading: browser checks, the first-visit download, errors -->
+      <section id="view-loading" class="view">
+        <img class="launcher-game-logo" src="/logo.png" alt="Project I.G.I. game logo">
+        <div class="brand">Project I.G.I.</div>
+        <p id="status" role="status" aria-live="polite"></p>
+        <progress id="progress" class="hidden" max="1" value="0"></progress>
+        <p id="eta" class="hidden"></p>
+        <div>
+          <button id="download" class="btn hidden" style="margin-top:16px"></button>
+          <div class="home-import-actions" id="manual-import" aria-label="Import your game files">
+            <label id="pick" class="btn home-import-btn">Choose game folder
+              <input id="folder" type="file" webkitdirectory directory multiple hidden>
+            </label>
+            <label id="pick-files" class="btn home-import-btn">Choose game files
+              <input id="game-files" type="file" multiple hidden>
+            </label>
           </div>
-        </section>
-
-        <section class="content-section soft" id="quick-answer"><p class="section-label">QUICK ANSWER</p><div role="presentation">Can you play Project I.G.I. online in a browser?</div><p>Yes, this browser port can run the original Project I.G.I.: I'm Going In (2000), but it does not include or distribute the commercial game files. Select your own legally obtained game folder when prompted; the browser copies the files into private storage on your device.</p><p>This page is free to access, with no account or installer required. “Free” refers to access to this website, not a free copy or download of the original game.</p></section>
-<section class="content-section" id="play-guide-copy"><p class="section-label">BROWSER PLAY GUIDE</p><div role="presentation">How the Project I.G.I. browser edition works</div>
-<p>Project I.G.I. Online is a fan-made browser interface for the original <strong>Project I.G.I.: I'm Going In</strong>, the tactical first-person shooter released in 2000. It is designed to let a player use a compatible browser to run a port of the game without installing a separate desktop launcher. The browser experience is not a cloud game streamed from a server: you provide the game data that you already own, and the browser uses that local data to run the port.</p>
-<div role="presentation">1. Prepare your own game copy</div><p>Before starting, locate a legally obtained copy of Project I.G.I. on your device. The browser page does not provide a download link for the commercial game and does not contain the original game data. When the launcher asks you to choose a folder, select the folder containing the installed game files. The first import can take time because the browser needs to copy a large collection of files into its private origin storage. The exact size depends on the copy you provide; do not assume the website will fetch the files for you.</p>
-<div role="presentation">2. Import once and keep browser storage intact</div><p>The port uses browser storage to keep the imported files available for later sessions. The import is performed locally by the browser and the selected game data is not uploaded to this website's server. If you clear site data, use a private browsing session, or let the browser evict stored data, you may need to import your own game folder again. Keep a separate backup of your original installation. Do not share your game folder or copyrighted files with other people unless you have the right to do so.</p>
-<div role="presentation">3. Start the game after the browser checks</div><p>Once the launcher finishes checking the browser and preparing the runtime, continue to the game menu and choose Play. The first start can take longer than later starts because the runtime has to initialize the game and load its resources. A black or temporarily inactive game view during initialization does not necessarily mean the page has stopped; wait for the visible status or loading indicator to change. If an error appears, note the exact message before refreshing.</p>
-<div role="presentation">4. Choose the input method that matches your device</div><p>On a desktop, the port provides keyboard and mouse input, with configurable bindings and sensitivity controls. The controls panel beside the game lists the available settings. On supported touch devices, the project includes an on-screen control layout with a virtual movement stick and action buttons. The touch interface also includes configurable layout options. Device compatibility depends on browser support, available memory and graphics hardware; the presence of a touch interface does not guarantee that every phone or tablet can run the game smoothly.</p>
-<div role="presentation">5. Use gyro aiming only where supported</div><p>The project includes gyroscope aiming options for compatible devices and browsers that expose motion sensors. Motion access may require a browser permission or a user gesture, and some platforms restrict sensor access. If the gyro option is unavailable or does not respond, use touch swipe aiming instead. You can review the <a href="/controls">keyboard, mouse, touch and gyro controls guide</a> for a summary of the options documented by this build.</p>
-<div role="presentation">6. Understand widescreen behavior</div><p>The build includes a widescreen display option. The game adjusts its viewport and field of view for wider windows while keeping certain 2D menus and scoped views in their intended proportions. Widescreen behavior can differ between the main 3D view, menus and scope overlays. If the image looks stretched or cropped, check the display setting and compare it with the default mode before changing browser zoom.</p>
-<div role="presentation">7. Troubleshoot without losing your imported files</div><p>If the game does not start, first check that your selected folder is the correct installation and that the browser supports WebAssembly and WebGPU. Close other memory-heavy tabs and applications, update the browser, and avoid opening multiple game sessions at once. If the browser reloads after a crash, it may have run out of memory or lost its graphics device. Preserve the browser's site data while troubleshooting; clearing storage can remove the imported copy and force another import.</p>
-<div role="presentation">8. Know what this website does and does not provide</div><p>This is an independent fan project. It is not an official release, is not affiliated with or endorsed by Innerloop Studios or Eidos Interactive, and does not distribute the original game. The browser port, page layout and setup guides are provided as a way to use your own game data in a compatible environment. Availability and performance can change with browser updates, operating-system policies and device hardware. For privacy and storage details, read the <a href="/is-project-igi-online-safe">Project I.G.I. browser safety guide</a> and the <a href="/privacy">privacy policy</a>.</p>
-<div role="presentation">9. Is this Project I.G.I. 1 or IGI 3?</div><p>This page runs the original Project I.G.I.: I'm Going In, released in 2000. It is not Project I.G.I. 2: Covert Strike and it is not I.G.I. Origins. The project commonly discussed as the third entry was announced under the name I.G.I. Origins, but it is not the 2000 game running here. Read the <a href="/project-igi-3-online-does-it-exist">IGI 3 release and identity explainer</a> for the distinction.</p>
-<div role="presentation">10. Start with the right guide</div><p>Use the live controls panel for current in-game bindings, the <a href="/faq">frequently asked questions</a> for common setup questions, and the <a href="/contact">contact page</a> to report a technical issue. If you are ready to launch, return to the game window above and import your own game folder when prompted.</p>
-</section><section class="content-section" id="browser-edition-note"><p class="section-label">BROWSER EDITION</p><div role="presentation">Project I.G.I. Online Play in Your Browser</div><p>This website is free to access: there is no sign-up and no installer. To play, select your own legally obtained copy of Project I.G.I. The browser copies the selected files into private browser storage on your device; this site does not host or distribute the original commercial game data, and the files are not uploaded to our servers.</p><p>Learn how the import works in the <a href="/play">Project I.G.I. browser play guide</a>, or review the <a href="/is-project-igi-online-safe">browser safety and privacy explanation</a>.</p></section><section class="content-section soft" id="about-game"><div class="about-grid"><div><p class="section-label">02 / ABOUT THE GAME</p><div role="presentation">Enter the world of Project I.G.I.</div><p><strong>Project I.G.I.: I'm Going In</strong> is a first-person tactical stealth shooter originally released in 2000. You play as David Jones, a former SAS soldier working through high-risk missions that reward observation, planning and controlled action.</p><p>Use the environment, long-range weapons, equipment and careful movement to infiltrate enemy positions. Its large outdoor areas and mission-based structure helped make it a memorable PC shooter.</p><p>This is an unofficial fan page and does not include or distribute the original copyrighted game data.</p></div><aside class="facts-card"><div role="presentation">Game facts</div><table class="facts-table"><tbody><tr><th>Title</th><td>Project I.G.I.: I'm Going In</td></tr><tr><th>Genre</th><td>Tactical FPS / stealth</td></tr><tr><th>Original release</th><td>2000</td></tr><tr><th>Developer</th><td>Innerloop Studios</td></tr><tr><th>Publisher</th><td>Eidos Interactive</td></tr><tr><th>Platform here</th><td>Browser (WebAssembly)</td></tr><tr><th>Original game</th><td>Single-player campaign</td></tr><tr><th>Browser feature</th><td>Separate 1v1 rooms, subject to service availability</td></tr><tr><th>Access</th><td>Free browser access</td></tr></tbody></table></aside><p class="small">Game-history references: <a href="https://www.pcgamingwiki.com/wiki/Project_I.G.I.:_I%27m_Going_In" rel="noopener">PCGamingWiki</a> · <a href="https://www.igdb.com/games/project-i-dot-g-i-dot-im-going-in/presskit" rel="noopener">IGDB press kit</a>.</p></div></section>
-<section class="content-section" id="how-to-play"><p class="section-label">03 / HOW TO PLAY</p><div role="presentation">Get into the mission</div><div class="steps-grid"><article class="step-card"><span class="step-number">01</span><div role="presentation">Start the game</div><p>Wait for browser checks and runtime preparation, then choose Play.</p></article><article class="step-card"><span class="step-number">02</span><div role="presentation">Move with the keyboard</div><p>Use movement keys shown in the live controls panel. Click a key there to rebind it.</p></article><article class="step-card"><span class="step-number">03</span><div role="presentation">Aim and interact</div><p>Use the mouse to look around and configured mouse buttons to aim and fire.</p></article><article class="step-card"><span class="step-number">04</span><div role="presentation">Use fullscreen</div><p>Expand the game window for an immersive view. Press Alt + Enter where supported.</p></article><article class="step-card"><span class="step-number">05</span><div role="presentation">Adjust your setup</div><p>Use Controls &amp; Settings to tune sensitivity, rebind keys and adjust supported options.</p></article><article class="step-card"><span class="step-number">06</span><div role="presentation">Keep your files safe</div><p>Do not clear browser site data if you want to retain locally stored game data and saves.</p></article></div><div class="controls-wrap"><table class="controls-table"><thead><tr><th>Action</th><th>Key / input</th></tr></thead><tbody><tr><td>Movement</td><td>Modern preset: <kbd class="keycap">W</kbd> <kbd class="keycap">A</kbd> <kbd class="keycap">S</kbd> <kbd class="keycap">D</kbd>; active bindings appear in Controls &amp; Settings.</td></tr><tr><td>Aim / look</td><td><kbd class="keycap">Mouse</kbd></td></tr><tr><td>Fire</td><td><kbd class="keycap">LMB</kbd></td></tr><tr><td>Alternate fire / scope toggle</td><td><kbd class="keycap">Middle mouse</kbd> / <kbd class="keycap">RMB</kbd></td></tr><tr><td>Reload / use</td><td><kbd class="keycap">Enter</kbd> / <kbd class="keycap">Right Shift</kbd></td></tr><tr><td>Crouch / jump / peek</td><td><kbd class="keycap">Right Ctrl</kbd> / <kbd class="keycap">Numpad 0</kbd> / <kbd class="keycap">Numpad 1</kbd></td></tr><tr><td>Binoculars / walk-run</td><td><kbd class="keycap">Space</kbd> / <kbd class="keycap">W</kbd> (held)</td></tr><tr><td>Map computer / menu</td><td><kbd class="keycap">C</kbd> / <kbd class="keycap">Esc</kbd></td></tr><tr><td>Menu</td><td><kbd class="keycap">Esc</kbd></td></tr><tr><td>Fullscreen</td><td><kbd class="keycap">Alt</kbd> + <kbd class="keycap">Enter</kbd></td></tr></tbody></table></div><p class="small">The mouse defaults are left-click to fire, middle-click for alternate fire and right-click to toggle the scope. Keyboard actions listed here match the browser control layer; rebindable keys can be changed in Controls &amp; Settings.</p></section>
-<section class="content-section soft" id="features"><p class="section-label">04 / FEATURES</p><div role="presentation">Built for tactical play</div><div class="features-grid"><article class="feature-card"><span class="feature-icon">⌖</span><div role="presentation">Stealth gameplay</div><p>Plan routes, observe patrols and choose when to engage.</p></article><article class="feature-card"><span class="feature-icon">⚒</span><div role="presentation">Weapons &amp; equipment</div><p>Use a range of weapons and mission equipment as the situation demands.</p></article><article class="feature-card"><span class="feature-icon">▤</span><div role="presentation">Mission campaign</div><p>Work through objectives across varied environments.</p></article><article class="feature-card"><span class="feature-icon">▣</span><div role="presentation">Browser runtime</div><p>The port uses WebAssembly to run within a compatible browser.</p></article><article class="feature-card"><span class="feature-icon">↻</span><div role="presentation">Local data support</div><p>Browser storage is used for runtime data; keep site data intact.</p></article><article class="feature-card"><span class="feature-icon">☷</span><div role="presentation">Touch interface</div><p>Touch controls and layout options are available on supported devices.</p></article></div></section>
-<section class="content-section" id="tips-and-tricks"><p class="section-label">05 / TIPS &amp; TRICKS</p><div role="presentation">Practical Project I.G.I. mission tips</div><ul class="tips-grid"><li>Study the area before moving into an exposed position.</li><li>Use cover and avoid unnecessary noise when possible.</li><li>Keep an eye on ammunition and reload between encounters.</li><li>Use long-range optics to assess distant threats.</li><li>Rebind keys if the default layout does not suit your setup.</li><li>Close memory-heavy browser tabs if performance becomes unstable.</li><li>Use landscape mode and a physical keyboard for desktop-style play.</li><li>Keep browser storage intact if you rely on locally saved data.</li></ul></section>
-<section class="content-section soft" id="faq-link"><p class="section-label">HELP &amp; SUPPORT</p><h2>Need another answer?</h2><p>The full FAQ covers own-copy imports, browser storage, controls, compatibility, multiplayer availability and troubleshooting.</p><a class="btn-primary" href="/faq">Read the Project I.G.I. FAQ</a></section>
-
-<section class="content-section" id="blog"><p class="section-label">07 / FROM THE BLOG</p><div role="presentation">Latest field reports</div><div class="blog-grid"><article class="blog-card"><div class="blog-art" aria-hidden="true"></div><span class="category">Beginner guide</span><div role="presentation">How to get started with Project I.G.I.</div><p>A quick guide to preparing your browser, understanding controls and entering your first mission.</p><a href="/blog/getting-started">Read more →</a></article><article class="blog-card"><div class="blog-art" aria-hidden="true"></div><span class="category">Gameplay</span><div role="presentation">Stealth tactics for difficult missions</div><p>Learn to observe patrols, use cover and make deliberate choices instead of rushing every encounter.</p><a href="/blog/stealth-tactics">Read more →</a></article><article class="blog-card"><div class="blog-art" aria-hidden="true"></div><span class="category">Performance</span><div role="presentation">Improve browser game performance</div><p>Simple browser and device checks that can help reduce slowdowns and failed starts.</p><a href="/blog/browser-performance">Read more →</a></article></div><a class="view-all" href="/blog">View all blogs ↗</a></section>
-<section class="final-cta"><div><div role="presentation">Ready to go in?</div><p>Your next mission is one click away.</p></div><a href="/play">▶ Play Now</a></section>
-      </div></details>
+        </div>
+        <p id="help" class="small home-import-help">Choose the Project I.G.I. folder containing <b>igi.exe</b>, <b>MISSIONS</b> and <b>COMMON</b>. Use “Choose game folder” so COMMON and MISSIONS keep their paths. Selecting individual files can flatten folders and prevent the game from starting. Files stay only in this browser.</p>
+        <div id="tips" class="tips hidden" aria-live="polite"><span class="tip-eyebrow">INTEL</span><span class="tip-text"></span></div>
       </section>
-    </main>
-    <section class="comments-section site-comments" id="comments" aria-labelledby="comments-title"><h2 id="comments-title">Join the discussion</h2><p>Share your feedback, questions or gameplay tips with the Project IGI community.</p><div class="disqus-frame-wrap">
+
+      <!-- home: solo or online -->
+      <section id="view-home" class="view hidden">
+        <div class="brand">Project I.G.I.</div>
+        <p class="tagline">I'm Going In.</p>
+        <div id="crashnote" class="hidden" role="status" aria-live="polite"></div>
+        <button id="play" class="play-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg>
+          Play
+        </button>
+        <button id="go-online" class="choice hidden"></button>
+        <!-- Which controls to set up (loader.js: device choice, remembered). Phones get the touch layout and the
+             gyroscope, computers the keyboard and mouse; the detection is only the preselected default. -->
+        <div id="device" class="device" role="radiogroup" aria-label="Playing on">
+          <div class="seg">
+            <button type="button" data-device="touch" role="radio" aria-checked="false">Phone / tablet</button>
+            <button type="button" data-device="pc" role="radio" aria-checked="false">Keyboard &amp; mouse</button>
+          </div>
+        </div>
+        <div class="home-links">
+          <button id="home-controls" type="button" class="link-btn">Controls &amp; layout</button>
+          <a href="#" id="reset" class="link-btn">Use a different game folder</a>
+        </div>
+        <div class="home-import-actions" aria-label="Import your game files">
+          <label class="btn home-import-btn">Choose game folder
+            <input id="home-folder" type="file" webkitdirectory directory multiple hidden>
+          </label>
+          <label class="btn home-import-btn">Choose game files
+            <input id="home-files" type="file" multiple hidden>
+          </label>
+        </div>
+        <p class="small home-import-help">Use “Choose game folder” whenever possible. The game needs COMMON and MISSIONS to retain their folder paths; selecting files individually may flatten them. Files stay only in this browser.</p>
+        
+      </section>
+
+      <!-- multiplayer: host or join -->
+      <section id="view-online" class="view hidden">
+        <button class="back" data-go="home">← Back</button>
+        <div class="stack">
+          <div>
+            <div role="presentation" style="margin:0;font-size:24px">Play Multiplayer</div>
+            <p class="small" style="margin:4px 0 0">Online 1v1. Each player needs a controller or the keyboard.</p>
+          </div>
+          <label class="field">Your name
+            <input id="np-name" placeholder="Player" maxlength="24" autocomplete="nickname">
+          </label>
+          <div class="card">
+            <div role="presentation">Host a game</div>
+            <p class="small" style="margin:0 0 12px">Get a room code to send to your friend.</p>
+            <button id="np-host" class="btn" style="width:100%">Create room</button>
+            <details>
+              <summary>Server location</summary>
+              <label>Room server
+                <select id="np-region">
+                  <option value="auto" selected>Nearest to me</option><option value="weur">Western Europe</option>
+                  <option value="eeur">Eastern Europe</option><option value="enam">Eastern North America</option>
+                  <option value="wnam">Western North America</option><option value="sam">South America</option>
+                  <option value="apac">Asia-Pacific</option><option value="apac-ne">Northeast Asia</option>
+                  <option value="apac-se">Southeast Asia</option><option value="oc">Oceania</option>
+                </select>
+              </label>
+              <p class="small" style="margin:8px 0 0">For friends in another country, a server between you is fairest.</p>
+            </details>
+          </div>
+          <div class="or">or</div>
+          <div class="card">
+            <div role="presentation">Join a game</div>
+            <p class="small" style="margin:0 0 12px">Enter the code your friend sent you.</p>
+            <div class="row">
+              <input id="np-code" placeholder="ROOM CODE" maxlength="12" autocapitalize="characters" autocomplete="off" spellcheck="false">
+              <button id="np-join" class="btn ghost">Join</button>
+            </div>
+          </div>
+          <p id="np-msg" class="msg"></p>
+        </div>
+      </section>
+
+      <!-- lobby: room code, players, start -->
+      <section id="view-lobby" class="view hidden">
+        <button id="np-leave" class="back">← Leave room</button>
+        <div class="stack">
+          <div>
+            <p class="small" style="margin:0">Room code</p>
+            <div class="code" id="np-room"></div>
+            <p class="small" style="margin:0"><span id="np-colo"></span></p>
+            <button id="np-copy" class="btn ghost" style="margin-top:12px">Copy invite link</button>
+            <span id="invite" class="hidden"></span>
+          </div>
+          <ul class="players" id="np-players"></ul>
+          <div id="np-hostctl" class="hidden">
+            <button id="np-start" class="btn" style="width:100%">Start match</button>
+            <details>
+              <summary>Input delay</summary>
+              <label>Delay
+                <select id="np-delay">
+                  <option value="auto" selected>Auto</option><option value="2">2 frames (33 ms)</option>
+                  <option value="3">3 frames (50 ms)</option><option value="4">4 frames (67 ms)</option>
+                  <option value="5">5 frames (83 ms)</option><option value="6">6 frames (100 ms)</option>
+                  <option value="8">8 frames (133 ms)</option><option value="10">10 frames (167 ms)</option>
+                  <option value="12">12 frames (200 ms)</option><option value="18">18 frames (300 ms)</option>
+                </select>
+              </label>
+              <p class="small" style="margin:8px 0 0">Auto picks the lowest delay your connection allows. Higher is smoother on a bad link; 2 or 3 frames need a direct connection in the same city or country.</p>
+            </details>
+          </div>
+          <p id="np-wait" class="hidden small"><span class="spinner"></span>Waiting for the host to start.</p>
+          <p id="np-lobbymsg" class="msg"></p>
+        </div>
+      </section>
+
+    </div>
+    <div id="booting" data-nosnippet class="hidden" aria-live="polite">
+      <div class="boot-inner">
+        <div class="radar"><span class="sweep"></span><span class="ping"></span></div>
+        <div role="presentation" class="boot-title">Project I.G.I.</div>
+        <p class="boot-phase">Starting the game…</p>
+        <button id="boot-controls" type="button" class="btn ghost" aria-label="Open touch controls and layout">Touch controls &amp; layout</button>
+        <div class="tips"><span class="tip-eyebrow">INTEL</span><span class="tip-text"></span></div>
+      </div>
+    </div>
+  </div>
+    <div class="game-toolbar" aria-label="Game actions"><div class="toolbar-actions"><button id="toolbar-fullscreen" type="button">⛶ Fullscreen</button><button id="toolbar-settings" type="button" aria-haspopup="dialog" aria-controls="kbd">⚙ Settings</button></div></div>
+  <!-- Static reference rail: no settings are shown here. -->
+  <aside id="controls-rail" aria-label="Game controls">
+    <div class="rail-heading"><span class="rail-kicker">FIELD MANUAL</span><div role="presentation">Controls</div><p>Keyboard &amp; mouse reference</p></div>
+    <div class="rail-control"><span>Move</span><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></div>
+    <div class="rail-control"><span>Look / Aim</span><kbd>Mouse</kbd></div>
+    <div class="rail-control"><span>Fire</span><kbd>Left click</kbd></div>
+    <div class="rail-control"><span>Alternate fire</span><kbd>Backspace</kbd></div>
+    <div class="rail-control"><span>Change weapon</span><kbd>Scroll</kbd> / <kbd>O</kbd></div>
+    <div class="rail-control"><span>Weapon slots</span><kbd>2</kbd> <kbd>4</kbd>–<kbd>9</kbd></div>
+    <div class="rail-control"><span>Map computer</span><kbd>C</kbd></div>
+    <div class="rail-control"><span>Game menu</span><kbd>Esc</kbd></div>
+    <div class="rail-control"><span>Fullscreen</span><kbd>Alt</kbd> + <kbd>Enter</kbd></div>
+    
+  </aside>
+  <!-- Settings dialog: game display and aiming preferences only. Keyboard controls remain in the field manual. -->
+  <aside id="kbd" role="dialog" aria-modal="true" aria-label="Game settings" aria-hidden="true">
+    <div class="settings-dialog">
+      <div class="kbd-head">
+        <div><span class="settings-kicker">PLAYER PREFERENCES</span><b>Game settings</b></div>
+        <button id="kbd-close" type="button" aria-label="Close settings" title="Close">×</button>
+      </div>
+      <details class="settings-group" open>
+        <summary>Display format</summary>
+        <div id="settings-display"></div>
+      </details>
+      <details class="settings-group" open>
+        <summary>Mouse &amp; aiming</summary>
+        <div id="settings-mouse"></div>
+      </details>
+      <details class="settings-group">
+        <summary>Touch &amp; gyroscope</summary>
+        <div id="settings-touch"></div>
+      </details>
+      <details class="settings-group">
+        <summary>Performance</summary>
+        <p>For smoother play, close memory-heavy tabs and use an up-to-date browser. The available display format depends on your screen and graphics hardware.</p>
+      </details>
+      <div class="kbd-foot">
+        <span class="small">Changes save automatically in this browser.</span>
+        <button id="kbd-reset" type="button" class="btn ghost">Reset settings</button>
+      </div>
+    </div>
+  </aside>
+
+
+<section class="comments-section site-comments" id="comments" aria-labelledby="comments-title"><h2 id="comments-title">Join the discussion</h2><p>Share your feedback, questions or gameplay tips with the Project IGI community.</p><div class="disqus-frame-wrap">
     <iframe id="disqus-frame" title="Project I.G.I. home discussion" credentialless loading="lazy" data-src="/disqus-frame?page=home" referrerpolicy="strict-origin-when-cross-origin"></iframe>
     <p id="disqus-fallback" class="disqus-fallback" hidden>Comments need a browser that supports secure third-party embeds. Please update Chrome, Edge or your browser and reload this page.</p>
   </div></section>
-    <footer id="sitefoot" class="site-footer"><div class="footer-brand"><a class="site-brand" href="/" aria-label="Project IGI Online home"><img src="/logo.png" class="brand-logo" alt=""><span class="brand-copy"><strong class="brand-name">Project IGI Online</strong><span class="brand-tagline">Project IGI Web Edition</span></span></a><small>Independent fan-made browser project.</small></div><div><h3>Pages</h3><ul><li><a href="/play">Play</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li><li><a href="/blog">Blog</a></li><li><a href="/faq">FAQ</a></li><li><a href="/controls">Controls</a></li></ul></div><div><h3>Legal</h3><ul><li><a href="/disclaimer">Disclaimer</a></li><li><a href="/dmca">DMCA</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/terms">Terms</a></li><li><a href="/cookie-policy">Cookie policy</a></li></ul></div><p class="legal-note">Independent fan project. Not affiliated with or endorsed by the original developers or publishers. This site does not host or distribute original game files. Rights holders can submit requests through the <a href="/dmca">DMCA page</a> or <a href="/contact">Contact page</a>.</p><p class="copyright"><span>Fan-made browser project · not an official release or rights-holder website.</span><span>Made with ❤️ and ☕</span><span id="visits" class="foot-visits" aria-live="polite"></span></p></footer>
-  </div>
-  <script>
-  (function () {
-    var frame=document.getElementById('disqus-frame');
-    var fallback=document.getElementById('disqus-fallback');
-    if(!frame)return;
-    if(!('credentialless' in HTMLIFrameElement.prototype)){
-      frame.hidden=true;if(fallback)fallback.hidden=false;return;
-    }
-    window.addEventListener('message',function(event){
-      if(event.source!==frame.contentWindow||!event.data||event.data.type!=='igi-disqus-height')return;
-      var height=Number(event.data.height);
-      if(Number.isFinite(height))frame.style.height=Math.max(420,Math.min(5000,height))+'px';
-    });
-  })();
-  </script>
-  
+<footer id="sitefoot" class="site-footer"><div class="footer-brand"><a class="site-brand" href="/" aria-label="Project IGI Online home"><img src="/logo.png" class="brand-logo" alt=""><span class="brand-copy"><strong class="brand-name">Project IGI Online</strong><span class="brand-tagline">Project IGI Web Edition</span></span></a><small>Independent fan-made browser project.</small></div><div><h3>Pages</h3><ul><li><a href="/play">Play</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li><li><a href="/blog">Blog</a></li><li><a href="/faq">FAQ</a></li><li><a href="/controls">Controls</a></li></ul></div><div><h3>Legal</h3><ul><li><a href="/disclaimer">Disclaimer</a></li><li><a href="/dmca">DMCA</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/terms">Terms</a></li><li><a href="/cookie-policy">Cookie policy</a></li></ul></div><p class="legal-note">Independent fan project. Not affiliated with or endorsed by the original developers or publishers. This site does not host or distribute original game files. Rights holders can submit requests through the <a href="/dmca">DMCA page</a> or <a href="/contact">Contact page</a>.</p><p class="copyright"><span>Fan-made browser project · not an official release or rights-holder website.</span><span>Made with ❤️ and ☕</span><span id="visits" class="foot-visits" aria-live="polite"></span></p></footer>
+  <button id="kbd-show" type="button" aria-label="Show keyboard controls" title="Show keyboard controls">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2.5" y="6" width="19" height="12" rx="2"/>
+      <path d="M6 10h.01M9 10h.01M12 10h.01M15 10h.01M18 10h.01M7 14h10"/>
+    </svg>
+  </button>
+</main>
+<script>(function(){var note=document.getElementById('crashnote');if(!note)return;var reveal=function(){if(!note.classList.contains('hidden')&&!note.textContent.trim()){note.textContent='The game stopped and the browser reloaded the page. On a phone, this can happen when memory runs low. Close other tabs and apps before starting again.';}};new MutationObserver(reveal).observe(note,{attributes:true,attributeFilter:['class']});reveal();})();</script>
+<script defer src="netplay.js"></script>
+<script defer src="controls.js?v=9"></script>
+<script defer src="touch.js?v=13"></script>
+<script defer src="loader.js?v=43"></script>
+<style>
+.home-import-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:14px auto 0}
+.home-import-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;cursor:pointer}
+.home-import-help{max-width:460px;margin:9px auto 0;text-align:center;line-height:1.5}
+.disqus-frame-wrap{width:100%;min-height:420px}
+#disqus-frame{display:block;width:100%;height:560px;min-height:420px;border:0;background:transparent}
+.disqus-fallback{padding:18px;border:1px solid var(--line);border-radius:12px;color:var(--muted);text-align:center}
+#view-loading .home-import-actions{width:100%;margin:18px auto 0}
+#view-loading .home-import-btn{min-width:150px;min-height:46px;font-size:14px}
+#view-loading .home-import-btn input{display:none}
+#view-loading .home-import-help{display:block!important;color:var(--muted);font-size:12px}
+</style>
+<script src="redesign-ui.js?v=20261031-2" defer></script>
+<script src="/web/sounds.config.js?v=20261101-1" defer></script>
+<script src="/web/igi-audio.js?v=20261101-1" defer></script>
 </body>
 </html>
