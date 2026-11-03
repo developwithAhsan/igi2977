@@ -36,14 +36,19 @@ jobs:
             --output web/build/recomp.js
           curl --fail --silent --show-error --location --retry 3 \
             https://sb-3p7wl7abz7a2.vercel.run/build/recomp.wasm \
-            --output /tmp/recomp.wasm
+            --output web/build/recomp.wasm
           test -s web/build/recomp.js
-          test -s /tmp/recomp.wasm
+          test -s web/build/recomp.wasm
           node --check web/build/recomp.js
-          gzip --best --stdout /tmp/recomp.wasm > web/build/recomp.wasm
-          gzip --test web/build/recomp.wasm
+          node - <<'NODE'
+          const fs = require('fs');
+          WebAssembly.compile(fs.readFileSync('web/build/recomp.wasm'))
+            .then(m => console.log('Validated WebAssembly imports:', WebAssembly.Module.imports(m).length,
+                                   'exports:', WebAssembly.Module.exports(m).length))
+            .catch(e => { console.error(e); process.exit(1); });
+          NODE
           echo "Browser JavaScript: $(stat -c '%s bytes' web/build/recomp.js)"
-          echo "Compressed WebAssembly: $(stat -c '%s bytes' web/build/recomp.wasm)"
+          echo "Raw WebAssembly: $(stat -c '%s bytes' web/build/recomp.wasm)"
           sha256sum web/build/recomp.js web/build/recomp.wasm
 
       - name: Configure WebAssembly response headers
@@ -65,7 +70,6 @@ jobs:
                   "source": source,
                   "headers": [
                       {"key": "Content-Type", "value": "application/wasm"},
-                      {"key": "Content-Encoding", "value": "gzip"},
                       {"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}
                   ]
               })
