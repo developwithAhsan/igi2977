@@ -379,10 +379,5 @@
       ]
     }
   ],
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/g.js": {
-      "maxDuration": 300
-    }
-  }
+  "$schema": "https://openapi.vercel.sh/vercel.json"
 }
