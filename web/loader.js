@@ -407,9 +407,10 @@ async function hostedManifest() {
     const seen = new Set(), list = [];
     for (const entry of entries) {
       if (!entry || typeof entry.path !== 'string' || !Number.isSafeInteger(entry.size) || entry.size < 0) return null;
-      const path = entry.path.replace(/^\\/+/, '');
+      const path = entry.path.replace(/^\/+/, '');
       const parts = path.split('/');
-      if (!path || path.includes('\\\\') || path.includes('\\0') || parts.some((part) => !part || part === '.' || part === '..')) return null;
+      if (!path || path.includes(String.fromCharCode(92)) || path.includes(String.fromCharCode(0)) ||
+          parts.some((part) => !part || part === '.' || part === '..')) return null;
       if (SKIP.test(path)) continue;
       const key = path.toLowerCase();
       if (seen.has(key)) return null;
