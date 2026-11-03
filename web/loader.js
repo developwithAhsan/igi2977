@@ -20,6 +20,27 @@
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
+// A public, CORS-enabled source may be configured once in web/game-source.js, or supplied with
+// ?gamesource=https://cdn.example.com/igi/. The default remains this site's /game/ directory.
+function configuredGameSource() {
+  const raw = params.get('gamesource') || window.RC_GAME_SOURCE || '/game/';
+  try {
+    const url = new URL(raw, location.href);
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password ||
+        (location.protocol === 'https:' && url.protocol !== 'https:')) throw new Error('Unsupported game source URL');
+    url.search = '';
+    url.hash = '';
+    if (!url.pathname.endsWith('/')) url.pathname += '/';
+    return url;
+  } catch (err) {
+    console.warn('Invalid configured game source; using /game/:', err.message);
+    return new URL('/game/', location.href);
+  }
+}
+const GAME_SOURCE = configuredGameSource();
+function gameSourceURL(path) {
+  return new URL(path.split('/').map(encodeURIComponent).join('/'), GAME_SOURCE).href;
+}
 const OPFS_DIR = 'rcgame';
 const MARKER = '.installed.json';   // { version } once every file is copied
 const NETPLAY_BASE = new URL(params.get('netplay') || './', location.href).href.replace(/\/?$/, '/');
@@ -400,7 +421,7 @@ async function importFromPicker(fileList) {
 // and files already there at the right size are kept, so an interrupted download resumes where it stopped.
 async function hostedManifest() {
   try {
-    const r = await fetch('game/manifest.json', { cache: 'no-store' });
+    const r = await fetch(new URL('manifest.json', GAME_SOURCE).href, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
     if (!r.ok) return null;
     const entries = await r.json();
     if (!Array.isArray(entries)) return null;
@@ -417,7 +438,9 @@ async function hostedManifest() {
       seen.add(key);
       list.push({ path, size: entry.size });
     }
-    return list.some((entry) => entry.path.toLowerCase() === 'igi.exe') ? list : null;
+    const roots = new Set(list.map((entry) => entry.path.split('/')[0].toLowerCase()));
+    return list.some((entry) => entry.path.toLowerCase() === 'igi.exe') &&
+      roots.has('common') && roots.has('missions') ? list : null;
   } catch { return null; }
 }
 
@@ -488,7 +511,7 @@ async function importFromServerInner(list, force = false) {
     let stallTimer = setTimeout(() => ac.abort(), 30000);
     const alive = () => { clearTimeout(stallTimer); stallTimer = setTimeout(() => ac.abort(), 30000); };
     try {
-      const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/'), { cache: 'no-store', signal: ac.signal });
+      const r = await fetch(gameSourceURL(e.path), { cache: 'no-store', mode: 'cors', credentials: 'omit', signal: ac.signal });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const w = await openWriter(fh, OPFS_DIR + '/' + e.path);
       const reader = r.body.getReader();
@@ -1476,7 +1499,7 @@ async function boot() {
     $('download').classList.add('hidden');
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
-      if (!hosted) throw new Error('Automatic download is not configured: the authorised game source must provide /game/manifest.json and its listed files.');
+      if (!hosted) throw new Error('Automatic download is not configured. Set web/game-source.js to an authorised game-file CDN containing manifest.json, igi.exe, COMMON and MISSIONS; the source must allow CORS from this website.');
       await importFromServer(hosted, forceHostedDownload);
       ready();
     }
