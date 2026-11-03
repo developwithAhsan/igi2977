@@ -249,3 +249,207 @@ body.home-page .home-fx{opacity:.38!important}
   body.inner-page .site-cta{display:none!important}
   body.inner-page .inner-main{width:calc(100% - 28px)!important;padding:20px 0 34px!important}
 }
+
+
+/* Responsive readability and layout guardrails.
+   Safe fallbacks are used because this repository does not ship the optional IGI display fonts. */
+:root {
+  --font-menu: "Arial Narrow", "Roboto Condensed", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  --font-tiny: ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+body:not(.home-page) {
+  font-family: var(--font-body) !important;
+  font-size: 15px !important;
+  line-height: 1.68 !important;
+  -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+  font-variant-ligatures: normal;
+}
+body.inner-page,
+body.inner-page .inner-main,
+body.inner-page .page-hero,
+body.inner-page .inner-card,
+body.inner-page .blog-article,
+body.inner-page .content-section,
+body.inner-page .site-footer {
+  min-width: 0;
+  max-width: 100%;
+}
+body.inner-page .inner-main > *,
+body.inner-page .inner-card :where(div,section,article,figure,form,fieldset),
+body.inner-page .blog-article :where(div,section,article,figure,form,fieldset) {
+  min-width: 0;
+  max-width: 100%;
+}
+body.inner-page :where(h1,h2,h3,h4,p,li,dd,dt,label,small,strong,figcaption) {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+body.inner-page img,
+body.inner-page video,
+body.inner-page iframe,
+body.inner-page canvas,
+body.inner-page svg {
+  max-width: 100%;
+}
+body.inner-page pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre;
+  -webkit-overflow-scrolling: touch;
+}
+body.inner-page .inner-card table,
+body.inner-page .blog-article table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0 !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+body.inner-page .inner-card th,
+body.inner-page .inner-card td,
+body.inner-page .blog-article th,
+body.inner-page .blog-article td {
+  min-width: 96px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+body.inner-page input,
+body.inner-page select,
+body.inner-page textarea,
+body.inner-page button {
+  max-width: 100%;
+  min-width: 0;
+}
+body.inner-page textarea {
+  width: 100%;
+  resize: vertical;
+}
+body.inner-page .site-footer {
+  display: grid;
+  grid-template-columns: minmax(0,1.4fr) repeat(2,minmax(0,1fr));
+  gap: 20px;
+  width: min(calc(100% - 32px), 1200px);
+  margin: 24px auto 0;
+  padding: clamp(18px,3vw,30px);
+  overflow-wrap: anywhere;
+}
+body.inner-page .site-footer > *,
+body.inner-page .site-footer li {
+  min-width: 0;
+}
+body.inner-page .site-footer .legal-note,
+body.inner-page .site-footer .copyright {
+  grid-column: 1 / -1;
+}
+body.inner-page .site-footer ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+body.inner-page .site-footer li + li { margin-top: 6px; }
+body.inner-page .site-comments {
+  min-width: 0;
+  overflow: hidden;
+}
+body.inner-page .site-comments iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+body.inner-page .blog-grid {
+  grid-template-columns: repeat(2,minmax(0,1fr));
+}
+body.inner-page .blog-card,
+body.inner-page .blog-card a,
+body.inner-page .blog-card h2,
+body.inner-page .blog-card p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+body.inner-page .site-nav a { white-space: nowrap; }
+
+@media (max-width: 800px) {
+  body.inner-page .site-header {
+    align-items: center;
+    gap: 8px 12px !important;
+    min-width: 0;
+  }
+  body.inner-page .site-header .site-brand,
+  body.inner-page .site-header .brand-copy {
+    min-width: 0;
+    max-width: 100%;
+  }
+  body.inner-page .site-header .brand-logo {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+  }
+  body.inner-page .site-nav {
+    display: flex !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+    gap: 4px 12px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 5px 0 7px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.inner-page .site-nav::-webkit-scrollbar { display: none; }
+  body.inner-page .site-nav a { flex: 0 0 auto; }
+  body.inner-page .inner-main {
+    width: calc(100% - 28px) !important;
+    max-width: none !important;
+    padding-top: 16px !important;
+    gap: 14px !important;
+  }
+  body.inner-page .page-hero,
+  body.inner-page .inner-card {
+    width: 100%;
+    padding: clamp(16px,4vw,24px) !important;
+  }
+  body.inner-page .page-hero h1 { font-size: clamp(26px,6.5vw,38px) !important; }
+  body.inner-page .inner-card h2,
+  body.inner-page .content-section h2 { font-size: clamp(19px,5vw,26px) !important; }
+  body.inner-page .blog-grid { grid-template-columns: minmax(0,1fr) !important; }
+  body.inner-page .site-comments {
+    width: calc(100% - 24px) !important;
+    max-width: none;
+    margin: 0 auto 20px;
+    padding: 16px !important;
+  }
+  body.inner-page .site-footer {
+    width: calc(100% - 24px);
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 16px;
+    margin-top: 18px;
+    padding: 20px 16px;
+  }
+  body.inner-page .site-footer .footer-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  body.inner-page .inner-main { width: calc(100% - 20px) !important; }
+  body.inner-page .page-hero h1 { font-size: clamp(24px,7.5vw,32px) !important; }
+  body.inner-page .inner-card p,
+  body.inner-page .inner-card li,
+  body.inner-page .blog-article p,
+  body.inner-page .blog-article li { font-size: 15px !important; line-height: 1.7 !important; }
+  body.inner-page .site-footer { grid-template-columns: minmax(0,1fr); }
+  body.inner-page .site-footer > * { grid-column: 1 / -1; }
+  body.inner-page .site-footer .copyright { display: grid; gap: 8px; }
+  body.inner-page .site-cta { display: none !important; }
+  body.inner-page .comments-section iframe { min-height: 380px; }
+}
+@media (max-width: 360px) {
+  body.inner-page .site-header { padding-inline: 10px !important; }
+  body.inner-page .site-header .brand-name { font-size: 12px !important; }
+  body.inner-page .site-nav { gap: 4px 9px !important; }
+  body.inner-page .site-nav a { font-size: 10px !important; }
+  body.inner-page .inner-card { padding: 16px 13px !important; }
+}

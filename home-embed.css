@@ -90,3 +90,147 @@ body.home-page #sitefoot .copyright { align-items: center; line-height: 1.6; }
   body.home-page #sitefoot { padding-bottom: max(18px, env(safe-area-inset-bottom)) !important; }
   body.home-page #sitefoot .copyright { align-items: flex-start; }
 }
+
+
+/* Stable homepage grid: game + reference panel on desktop, stacked in reading order on phones. */
+html body.home-page main#main-content {
+  display: grid !important;
+  grid-template-columns: minmax(0,1fr) minmax(220px,300px) !important;
+  grid-template-rows: auto auto !important;
+  grid-auto-flow: row !important;
+  align-items: start !important;
+  align-content: start !important;
+  justify-content: stretch !important;
+  gap: 14px 20px !important;
+  width: min(100%,1600px) !important;
+  max-width: 1600px !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  padding: 16px clamp(12px,2.5vw,36px) 36px !important;
+}
+html body.home-page main#main-content > #stage {
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  aspect-ratio: 16 / 9 !important;
+  margin: 0 !important;
+  justify-self: stretch !important;
+}
+html body.home-page main#main-content > .game-toolbar {
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+html body.home-page main#main-content > #controls-rail {
+  grid-column: 2 !important;
+  grid-row: 1 / span 2 !important;
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 300px !important;
+  min-width: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+}
+html body.home-page main#main-content > #comments,
+html body.home-page main#main-content > .site-comments,
+html body.home-page main#main-content > #sitefoot {
+  grid-column: 1 / -1 !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+html body.home-page main#main-content > #sitefoot {
+  grid-template-columns: minmax(0,1.4fr) repeat(2,minmax(0,1fr)) !important;
+  align-items: start !important;
+  gap: 18px 22px !important;
+  padding: 28px clamp(14px,3vw,44px) 20px !important;
+  overflow-wrap: anywhere;
+}
+html body.home-page #sitefoot > * { min-width: 0; }
+html body.home-page #sitefoot .legal-note,
+html body.home-page #sitefoot .copyright { grid-column: 1 / -1 !important; }
+html body.home-page #stage canvas { display:block; width:100%; height:100%; max-width:100%; }
+html body.home-page #kbd-show { position: fixed; z-index: 60; }
+html body.home-page #sitefoot a,
+html body.home-page #sitefoot p,
+html body.home-page #sitefoot small,
+html body.home-page #sitefoot li { overflow-wrap: anywhere; }
+
+@media (max-width: 800px) {
+  html body.home-page main#main-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    align-content: stretch !important;
+    gap: 12px !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 12px clamp(10px,3vw,18px) 30px !important;
+  }
+  html body.home-page main#main-content > #stage {
+    order: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    aspect-ratio: 16 / 9 !important;
+    margin: 0 !important;
+  }
+  html body.home-page main#main-content > .game-toolbar {
+    order: 2 !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  html body.home-page main#main-content > #controls-rail {
+    order: 3 !important;
+    width: 100% !important;
+    max-width: none !important;
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  html body.home-page main#main-content > #comments,
+  html body.home-page main#main-content > .site-comments {
+    order: 4 !important;
+    width: 100% !important;
+    padding: 18px 12px !important;
+  }
+  html body.home-page main#main-content > #sitefoot {
+    order: 5 !important;
+    grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+    gap: 16px !important;
+    padding: 22px 14px 18px !important;
+  }
+  html body.home-page #sitefoot .footer-brand { grid-column: 1 / -1 !important; }
+}
+@media (max-width: 520px) {
+  html body.home-page main#main-content { padding-inline: 8px !important; }
+  html body.home-page main#main-content > #stage { aspect-ratio: 16 / 9 !important; }
+  html body.home-page .game-toolbar .toolbar-actions { display:flex !important; flex-wrap:wrap !important; gap:7px !important; }
+  html body.home-page .game-toolbar .toolbar-actions button { flex:1 1 130px !important; min-height:40px !important; }
+  html body.home-page main#main-content > #sitefoot { grid-template-columns:minmax(0,1fr) !important; }
+  html body.home-page #sitefoot > *,
+  html body.home-page #sitefoot .footer-brand,
+  html body.home-page #sitefoot .legal-note,
+  html body.home-page #sitefoot .copyright { grid-column:1 / -1 !important; }
+}
+@media (max-width: 360px) {
+  html body.home-page .home-nav { gap:2px; }
+  html body.home-page .home-nav a { padding-inline:5px; font-size:9px; }
+  html body.home-page #sitefoot { padding-inline:12px !important; }
+}
