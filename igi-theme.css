@@ -453,3 +453,86 @@ body.inner-page .site-nav a { white-space: nowrap; }
   body.inner-page .site-nav a { font-size: 10px !important; }
   body.inner-page .inner-card { padding: 16px 13px !important; }
 }
+
+
+/* Header refinement across inner pages: prevent logo/nav overlap and keep mobile nav usable. */
+body.inner-page .site-header {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  gap: clamp(10px,1.6vw,24px);
+  justify-content: space-between;
+}
+body.inner-page .site-header .site-brand {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+body.inner-page .site-header .brand-copy,
+body.inner-page .site-header .brand-name,
+body.inner-page .site-header .brand-tagline {
+  min-width: 0;
+}
+body.inner-page .site-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  gap: clamp(8px,1.5vw,22px);
+}
+body.inner-page .site-nav a {
+  white-space: nowrap;
+  line-height: 1.35;
+}
+@media (max-width: 800px) {
+  body.inner-page .site-header {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: space-between !important;
+    padding: 9px 12px !important;
+    min-height: 0;
+    gap: 7px 10px !important;
+  }
+  body.inner-page .site-header .site-brand {
+    flex: 0 1 auto;
+    max-width: calc(100% - 8px);
+    font-size: 18px;
+  }
+  body.inner-page .site-header .brand-logo,
+  body.inner-page .site-header .site-brand img {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+  }
+  body.inner-page .site-nav {
+    order: 3;
+    display: flex !important;
+    flex: 1 0 100%;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px 14px !important;
+    padding: 4px 0 7px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.inner-page .site-nav::-webkit-scrollbar { display: none; }
+  body.inner-page .site-nav a {
+    flex: 0 0 auto;
+    padding: 6px 2px !important;
+    font-size: 10px !important;
+  }
+  body.inner-page .site-nav a[aria-current=page]:after { bottom: 1px !important; }
+  body.inner-page .site-cta { display: none !important; }
+}
+@media (max-width: 360px) {
+  body.inner-page .site-header { padding-inline: 9px !important; }
+  body.inner-page .site-header .site-brand { font-size: 15px; }
+  body.inner-page .site-nav { gap: 3px 10px !important; }
+  body.inner-page .site-nav a { font-size: 9px !important; }
+}
