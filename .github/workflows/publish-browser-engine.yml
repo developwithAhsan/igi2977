@@ -78,7 +78,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/build/recomp.js web/build/recomp.wasm vercel.json
+          git add vercel.json
+          git add -f web/build/recomp.js web/build/recomp.wasm
           git diff --cached --check
           git commit -m "Publish compiled Project IGI browser engine"
           git push origin HEAD:redesign-oct30
