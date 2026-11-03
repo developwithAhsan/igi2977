@@ -134,7 +134,7 @@ build/recomp /path/to/game-folder
 
 # 4. Build the browser version and serve it
 PROFILE=work/profile.h ./build_web.sh
-python3 web/serve.py                  # open http://localhost:8007/ and pick your game folder
+python3 web/serve.py --game /path/to/Project_IGI_folder  # first visit downloads the hosted folder automatically
 
 # 5. Optional, for online play: deploy the room server (see server/README.md)
 cd server && npx wrangler deploy && npx wrangler secret put NETPLAY_SECRET
@@ -144,6 +144,15 @@ cd server && npx wrangler deploy && npx wrangler secret put NETPLAY_SECRET
 Controls: a game controller, or the keyboard (arrow keys to move, **S** to select, mouse for the
 cursor). Use `RC_NO_AUDIO=1` to mute the native app, or `?mute` on the page. Both players in an online
 match need the same build and the same game files.
+
+
+## Automatic first-run download and browser engine
+
+The launcher automatically imports a hosted game folder on a first visit when `/game/manifest.json` is present and lists the files served under `/game/`. The manifest can be generated locally with `python3 web/serve.py --manifest /path/to/your-legal-game-folder`; this only writes the manifest and does not upload or publish the files. For a local test, use `python3 web/serve.py --game /path/to/your-legal-game-folder`. Add `?devgame` to force an automatic refresh from that configured source.
+
+The browser engine is separate from the game folder. `build_web.sh` generates a matching `recomp.js` and `recomp.wasm` in `build_web/www/`; the website serves those at `/build/recomp.js` and `/build/recomp.wasm`. They must be built together and deployed together. The engine build itself requires the owner's legally obtained `igi.exe`, the Ghidra function export, the translated `out_all/` sources, and Emscripten. Those inputs and generated outputs are intentionally not stored in this repository. The original commercial game files must not be uploaded or published without the necessary rights.
+
+A browser cannot silently read a visitor's local disk. Without a configured, authorised hosted game source, the first import therefore requires the player to choose their own legally obtained game folder once; after import, the browser keeps it in its private local storage.
 
 ## Technical notes
 
