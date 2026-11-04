@@ -1,4 +1,7 @@
+# Public browser pages and game assets remain crawl-accessible.
 User-agent: *
 Allow: /
+Disallow: /disqus-frame
 
+# Canonical public URLs are listed in the XML sitemap.
 Sitemap: https://project-igi.online/sitemap.xml
