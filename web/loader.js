@@ -635,6 +635,9 @@ async function downloadGame(game) {
   }
   setLoadingProgress('Verifying and installing game', 1);
   await importFiles(await isoFiles(await image.getFile()));
+  // importFiles writes a content fingerprint for manually imported folders; hosted installs must retain
+  // the published package version so the next visit recognises this exact package and does not redownload it.
+  await writeMarker(game.version);
   await root.removeEntry(DL_DIR, { recursive: true });
 }
 
