@@ -1157,6 +1157,14 @@ async function chooseRendererForLaunch() {
   if (!params.has('renderer')) {
     try { if (localStorage.getItem('igi-renderer-gl') && webgl2Available()) return 'gl'; } catch { /* storage blocked */ }
   }
+  // ChromeOS devices often expose WebGPU adapters whose command submission is unreliable
+  // with this compatibility renderer. Prefer the WebGL 2 path there; keep WebGPU as fallback.
+  const chromeOS = /CrOS/.test(navigator.userAgent);
+  if (chromeOS && webgl2Available()) {
+    window.RC_RENDERER = 'gl';
+    console.info('ChromeOS detected: starting with WebGL 2 for graphics compatibility.');
+    return 'gl';
+  }
   if (navigator.gpu && typeof navigator.gpu.requestAdapter === 'function') {
     try {
       let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
@@ -1268,9 +1276,9 @@ async function run(session) {
   };
   const frame = (t) => {
     poll(M);
-    if (!booted && !firstFrameRecoveryChecked && t - launchStartedAt >= 150000) {
+    if (!booted && !firstFrameRecoveryChecked && t - launchStartedAt >= 60000) {
       firstFrameRecoveryChecked = true;
-      const message = 'The game has not produced its first frame after 2½ minutes.';
+      const message = 'The game has not produced its first frame after 60 seconds.';
       if (!retryWithWebGL(message)) {
         showStartupFailure(message + ' The selected WebGL 2 renderer has not started the game. The imported folder may be incomplete or incompatible, or the browser graphics driver may be blocking this port. Reload and check the browser diagnostic log with ?debug.');
       }
