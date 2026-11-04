@@ -1724,7 +1724,8 @@ async function boot() {
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
       if (!hosted) throw new Error('Automatic download is not configured. Set web/game-source.js to an authorised game-file CDN containing manifest.json, igi.exe, COMMON and MISSIONS; the source must allow CORS from this website.');
-      if (hosted.format === 'iso') await downloadGame(hosted);\n      else await importFromServer(hosted, forceHostedDownload);
+      if (hosted.format === 'iso') await downloadGame(hosted);
+      else await importFromServer(hosted, forceHostedDownload);
       ready();
     }
     catch (err) { offerDownload(storageProblem(err) || errorMessage(err, 'The automatic game download failed.')); }
