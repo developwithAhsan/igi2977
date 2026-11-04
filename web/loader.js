@@ -48,6 +48,8 @@ const status = (t) => { $('status').textContent = t; };
 const setLoadingProgress = (phase, fraction) => {
   const value = Math.max(0, Math.min(1, Number(fraction) || 0));
   const percent = Math.round(value * 100);
+  const display = $('progress-display');
+  if (display) display.classList.remove('hidden');
   const bar = $('progress');
   if (bar) { bar.value = value; bar.setAttribute('aria-valuenow', String(percent)); }
   const label = $('progress-percent');
@@ -455,10 +457,10 @@ async function importFromPicker(fileList) {
   await navigator.storage.persist?.();
   const dir = await gameDir(true);
   let done = 0;
-  $('progress').classList.remove('hidden');
+  $('progress-display')?.classList.remove('hidden');
   $('progress').value = 0;
   for (const e of list) {
-    status('Copying ' + e.dest + ' (' + mb(done) + ' / ' + mb(total) + ' MB)');
+    setLoadingProgress('Installing game files', done / total);
     const fh = await fileHandle(dir, e.dest, true);
     const w = await openWriter(fh, OPFS_DIR + '/' + e.dest);
     try {
@@ -474,7 +476,7 @@ async function importFromPicker(fileList) {
   const sig = list.map((e) => e.dest + ':' + e.f.size).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sig));
   await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join(''));
-  $('progress').classList.add('hidden');
+  $('progress-display')?.classList.add('hidden');
 }
 const CD_FILES = ['ymbe.afp', 'anys.afp', 'mpzm.afp'];
 
