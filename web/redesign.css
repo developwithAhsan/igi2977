@@ -977,3 +977,10 @@ html body .content-section a:hover{
 #kbd .settings-segment button{background:#102819!important;color:#d9ffe2!important;border-color:rgba(130,255,161,.48)!important}
 #kbd .settings-segment button.selected{background:#236b37!important;color:#fff!important;border-color:#8bffad!important}
 @media(max-width:800px){.home-header{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 0}.home-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start}.home-header-cta{grid-column:2;grid-row:1}.home-brand img{width:48px;height:42px}}
+
+/* Keep the Play page's About the Game summary compact and easy to scan. */
+#about-game{padding:clamp(18px,2.6vw,30px)!important;gap:12px}
+#about-game .about-grid{gap:18px;align-items:center}
+#about-game .facts-card{padding:14px}
+#about-game .facts-table th,#about-game .facts-table td{padding:6px 8px}
+#about-game h2{margin-top:4px}
