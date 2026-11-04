@@ -585,7 +585,7 @@ body.settings-open:before{z-index:99!important}
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://project-igi.online/"},{"@type":"ListItem","position":2,"name":"Play Project I.G.I. Online","item":"https://project-igi.online/play"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is the original Project I.G.I. game included?","acceptedAnswer":{"@type":"Answer","text":"No. This website does not host or distribute the original commercial game files. Import your own legally obtained copy."}},{"@type":"Question","name":"Is this website free to use?","acceptedAnswer":{"@type":"Answer","text":"The website is free to access, with no sign-up or separate installer. You still need to provide your own legally obtained game copy."}},{"@type":"Question","name":"Where are my imported game files stored?","acceptedAnswer":{"@type":"Answer","text":"The browser copies selected files into browser-managed storage for this website on your device. The import flow is not designed to upload the game folder to this site's server. Clearing site data may remove the imported copy."}},{"@type":"Question","name":"Does the original Project I.G.I. have multiplayer?","acceptedAnswer":{"@type":"Answer","text":"No. The original Project I.G.I.: I'm Going In campaign is single-player. This browser project has a separate 1v1 online-room option; that is a browser-project feature, not part of the original game."}},{"@type":"Question","name":"Can I use touch controls and gyroscope aiming?","acceptedAnswer":{"@type":"Answer","text":"The project includes touch controls and gyroscope aiming for compatible mobile devices. Browser support and motion-sensor permissions vary by device."}}]}</script><link rel="stylesheet" href="/igi-theme.css?v=20261101-1"><link rel="stylesheet" href="/home.css?v=20261104-2">
 </head>
-<body>
+<body class="inner-page">
 <a class="skip-link" href="#main-content">Skip to content</a><header class="home-header" id="site-header">
         <a class="home-brand" href="/" aria-label="Project IGI Online home">
           <img src="/logo.png" alt="" width="112" height="96">
@@ -789,6 +789,13 @@ body.settings-open:before{z-index:99!important}
     <div class="rail-control"><span>Game menu</span><kbd>Esc</kbd></div>
     <div class="rail-control"><span>Fullscreen</span><kbd>Alt</kbd> + <kbd>Enter</kbd></div>
     
+    <section class="ig-community-card" aria-label="Follow Project IGI Online on Instagram">
+      <p class="ig-community-kicker">COMMUNITY / FEEDBACK</p>
+      <h3>Follow us on Instagram</h3>
+      <p>Enjoyed the game? Send us your review by DM or Story. Found a bug, have a question, or want to suggest a new feature? Message us — your feedback helps us improve.</p>
+      <a class="ig-follow-button" href="https://www.instagram.com/ahsan0world/" target="_blank" rel="noopener noreferrer">Follow on Instagram <span aria-hidden="true">↗</span></a>
+      <p class="ig-community-note">Please include your browser and device when reporting a technical issue.</p>
+    </section>
   </aside>
   <!-- Settings dialog: game display and aiming preferences only. Keyboard controls remain in the field manual. -->
   <aside id="kbd" role="dialog" aria-modal="true" aria-label="Game settings" aria-hidden="true">
@@ -880,8 +887,8 @@ body.settings-open:before{z-index:99!important}
 <script defer src="netplay.js"></script>
 <script defer src="controls.js?v=9"></script>
 <script defer src="touch.js?v=13"></script>
-<script defer src="/web/game-source.js?v=2"></script>
-<script defer src="loader.js?v=49"></script>
+<script defer src="/web/game-source.js?v=3"></script>
+<script defer src="loader.js?v=50"></script>
 <style>
 .home-import-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:14px auto 0}
 .home-import-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;cursor:pointer}
