@@ -637,7 +637,10 @@ body.settings-open:before{z-index:99!important}
         <img class="launcher-game-logo" src="/logo.png" alt="Project I.G.I. game logo">
         <div class="brand">Project I.G.I.</div>
         <p id="status" role="status" aria-live="polite"></p>
-        <progress id="progress" class="hidden" max="1" value="0"></progress>
+        <div class="progress-display hidden" id="progress-display" aria-live="polite">
+          <div class="progress-track"><progress id="progress" max="1" value="0" aria-label="Game download progress"></progress></div>
+          <output id="progress-percent" for="progress">0%</output>
+        </div>
         <p id="eta" class="hidden"></p>
         <div>
           <button id="download" class="btn hidden" style="margin-top:16px"></button>
@@ -767,7 +770,7 @@ body.settings-open:before{z-index:99!important}
     </div>
     <div id="booting" data-nosnippet class="hidden" aria-live="polite">
       <div class="boot-inner">
-        <div class="radar"><span class="sweep"></span><span class="ping"></span></div>
+        <div class="igi-boot-emblem" aria-hidden="true"><span class="igi-reticle"><i></i><b></b></span><span class="igi-scanline"></span></div>
         <div role="presentation" class="boot-title">Project I.G.I.</div>
         <p class="boot-phase">Starting the game…</p>
         <button id="boot-controls" type="button" class="btn ghost" aria-label="Open touch controls and layout">Touch controls &amp; layout</button>
@@ -849,7 +852,7 @@ body.settings-open:before{z-index:99!important}
 
   <!-- Desktop ads row (filled by the ads script at the end): 728x90 left, 300x250 right, under the stage, gone while the game runs -->
   <div id="adrow" aria-label="Advertisements"></div>
-  <section class="comments-section site-comments" id="comments" aria-labelledby="comments-title"><h2 id="comments-title">Join the discussion</h2><p>Share your feedback, questions or gameplay tips with the Project IGI community.</p><div class="disqus-frame-wrap">
+  <section class="comments-section site-comments" id="comments" aria-labelledby="comments-title"><h2 id="comments-title">Join the discussion</h2><p>Report bugs, share gameplay tips or suggest improvements in the comments. You can also <a href="https://www.instagram.com/ahsan0world/" target="_blank" rel="noopener noreferrer">message us on Instagram</a> with details of the issue.</p><div class="disqus-frame-wrap">
     <iframe id="disqus-frame" title="Project I.G.I. community discussion" credentialless loading="lazy" src="/disqus-frame" referrerpolicy="strict-origin-when-cross-origin"></iframe>
     <p id="disqus-fallback" class="disqus-fallback" hidden>Comments need a browser that supports secure third-party embeds. Please update Chrome, Edge or your browser and reload this page.</p>
   </div></section>
@@ -886,7 +889,7 @@ body.settings-open:before{z-index:99!important}
 <script defer src="controls.js?v=9"></script>
 <script defer src="touch.js?v=13"></script>
 <script defer src="/web/game-source.js?v=3"></script>
-<script defer src="loader.js?v=50"></script>
+<script defer src="loader.js?v=51"></script>
 <style>
 .home-import-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:14px auto 0}
 .home-import-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;cursor:pointer}
