@@ -1723,7 +1723,7 @@ async function boot() {
     $('download').classList.add('hidden');
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
-      if (!hosted) throw new Error('Automatic download is not configured. Set web/game-source.js to an authorised game-file CDN containing manifest.json, igi.exe, COMMON and MISSIONS; the source must allow CORS from this website.');
+      if (!hosted) throw new Error('The authorised game package index could not be reached. Check your connection and reload the page, or choose your own legally obtained game folder.');
       if (hosted.format === 'iso') await downloadGame(hosted);
       else await importFromServer(hosted, forceHostedDownload);
       ready();
@@ -1752,8 +1752,8 @@ async function boot() {
   }
   if (!installed) {
     showPicker(forceHostedDownload
-      ? 'Automatic download was requested, but this server has no valid /game/manifest.json. Configure an authorised game-file source to enable it.'
-      : 'Automatic download is not configured on this server yet. Choose your own legally obtained Project I.G.I. folder or select its game files.');
+      ? 'The authorised automatic game package could not be reached. Check your connection and reload, or choose your own legally obtained game folder.'
+      : 'The authorised automatic game package could not be reached. Check your connection and reload, or choose your own legally obtained Project I.G.I. folder.');
     return;
   }
   if (hosted) await refreshConfig(hosted);
