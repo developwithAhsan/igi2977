@@ -846,3 +846,33 @@ body:not(.home-page) .igi-gallery-note{grid-column:2;margin:0;color:#86a991;font
 #refull{min-height:46px!important;padding:10px 20px!important;border:1px solid rgba(135,229,164,.72)!important;border-radius:999px!important;background:rgba(5,18,10,.94)!important;color:#fff!important;font-size:14px!important;font-weight:800!important;box-shadow:0 8px 22px rgba(0,0,0,.42)!important}
 #refull svg{width:19px!important;height:19px!important}
 @media(max-width:800px){#controls-rail .ig-community-card{padding:12px 13px}#controls-rail .ig-community-card h3{font-size:20px}#controls-rail .ig-community-card p{font-size:10.5px}}
+
+
+/* Tactical loading experience: one clear percentage, one glowing progress track. */
+.progress-display{width:min(100%,360px);margin:15px auto 0;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px}
+.progress-display.hidden{display:none!important}
+.progress-track{position:relative;min-width:0;height:10px;overflow:hidden;border:1px solid rgba(117,226,150,.45);border-radius:99px;background:#07120b;box-shadow:inset 0 1px 4px rgba(0,0,0,.8),0 0 12px rgba(63,213,112,.12)}
+.progress-track progress{display:block;width:100%;height:100%;margin:0!important;padding:0;border:0;border-radius:99px;background:#07120b;appearance:none;-webkit-appearance:none;overflow:hidden}
+.progress-track progress::-webkit-progress-bar{border-radius:99px;background:linear-gradient(180deg,#07120b,#0d1c11)}
+.progress-track progress::-webkit-progress-value{border-radius:99px;background:linear-gradient(90deg,#168343,#57ed91 72%,#b5ffcf);box-shadow:0 0 8px rgba(76,255,139,.8),0 0 18px rgba(76,255,139,.38);transition:width .18s ease}
+.progress-track progress::-moz-progress-bar{border-radius:99px;background:linear-gradient(90deg,#168343,#57ed91 72%,#b5ffcf);box-shadow:0 0 8px rgba(76,255,139,.8),0 0 18px rgba(76,255,139,.38)}
+#progress-percent{min-width:42px;color:#d7ffe2;font:800 13px/1 ui-monospace,monospace;font-variant-numeric:tabular-nums;text-align:right;text-shadow:0 0 10px rgba(76,255,139,.55)}
+#status{margin:12px auto 0!important;color:#d4e8d8!important;font-size:13px;letter-spacing:.02em}
+#eta{margin-top:7px!important;color:rgba(209,235,216,.68)!important;font-size:11px!important}
+/* Replace the old dark spinning radar with a crisp tactical targeting reticle. */
+#booting .igi-boot-emblem{position:relative;width:108px;height:108px;margin:0 auto 22px;display:grid;place-items:center;border:1px solid rgba(91,224,135,.26);border-radius:50%;background:radial-gradient(circle,rgba(65,205,110,.12),rgba(3,13,7,.14) 58%,transparent 72%);box-shadow:0 0 25px rgba(56,205,106,.12),inset 0 0 22px rgba(56,205,106,.12)}
+#booting .igi-boot-emblem:before,#booting .igi-boot-emblem:after{content:"";position:absolute;background:rgba(125,239,160,.62);box-shadow:0 0 8px rgba(92,255,145,.38)}
+#booting .igi-boot-emblem:before{width:1px;height:88%;left:50%;top:6%}
+#booting .igi-boot-emblem:after{height:1px;width:88%;left:6%;top:50%}
+#booting .igi-reticle{position:relative;z-index:1;width:54px;height:54px;border:1px solid rgba(155,255,183,.88);border-radius:50%;box-shadow:0 0 15px rgba(72,240,128,.35),inset 0 0 14px rgba(72,240,128,.16);animation:igi-lock 2.4s ease-in-out infinite}
+#booting .igi-reticle:before,#booting .igi-reticle:after{content:"";position:absolute;inset:9px;border:1px dashed rgba(135,244,164,.55);border-radius:50%}
+#booting .igi-reticle:after{inset:22px;background:#a5ffc0;border:0;box-shadow:0 0 12px #63f58e}
+#booting .igi-reticle i,#booting .igi-reticle b{position:absolute;display:block;background:#b5ffd0}
+#booting .igi-reticle i{width:1px;height:13px;left:50%;top:-13px}
+#booting .igi-reticle b{height:1px;width:13px;right:-13px;top:50%}
+#booting .igi-scanline{position:absolute;z-index:2;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,#a6ffc2,transparent);box-shadow:0 0 10px #5dff91;animation:igi-scan 2.8s ease-in-out infinite}
+@keyframes igi-lock{0%,100%{transform:scale(.94);opacity:.82}50%{transform:scale(1.04);opacity:1}}
+@keyframes igi-scan{0%,100%{top:16%;opacity:.25}50%{top:84%;opacity:1}}
+.comments-section.site-comments a{color:#9dffb8;text-decoration:underline;text-underline-offset:3px}
+@media(prefers-reduced-motion:reduce){#booting .igi-reticle,#booting .igi-scanline{animation:none}}
+@media(max-width:520px){.progress-display{width:min(100%,310px);gap:9px}.progress-track{height:9px}#progress-percent{font-size:12px}#booting .igi-boot-emblem{width:92px;height:92px}}
