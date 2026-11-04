@@ -311,3 +311,45 @@ body.home-page .home-header-cta { flex: 0 0 auto; white-space: nowrap; }
   body.home-page .home-header-cta { padding-inline: 6px; font-size: 8px; }
   body.home-page .home-nav a { padding-inline: 5px; font-size: 8px; }
 }
+
+
+/* Shared compact Instagram panel and consistent dark game controls. */
+#controls-rail .ig-community-card{
+  margin-top:14px;padding:13px 14px 14px;border:1px solid rgba(225,48,108,.38);
+  border-radius:14px;background:linear-gradient(135deg,rgba(81,48,105,.94) 0%,rgba(132,45,103,.88) 48%,rgba(194,61,91,.82) 100%);
+  color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 24px rgba(0,0,0,.22);
+}
+#controls-rail .ig-community-card h3{
+  margin:0 0 6px;color:#fff;font:900 22px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;
+  letter-spacing:.13em;text-transform:uppercase;text-shadow:0 1px 10px rgba(0,0,0,.22)
+}
+#controls-rail .ig-community-card p{margin:0 0 11px;color:rgba(255,255,255,.92);font-size:11px;line-height:1.45}
+#controls-rail .ig-follow-button{
+  display:flex;width:min(100%,190px);min-height:39px;margin:0 auto;padding:9px 18px;align-items:center;justify-content:center;
+  border:1px solid #1877f2;border-radius:999px;background:#1877f2;color:#fff!important;
+  font:800 12px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.14em;text-decoration:none!important;
+  box-shadow:0 5px 14px rgba(0,0,0,.2);transition:background .16s,border-color .16s,transform .16s,box-shadow .16s
+}
+#controls-rail .ig-follow-button:hover{background:#0866df;border-color:#0866df;color:#fff!important;transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,.25)}
+#controls-rail .ig-follow-button:focus-visible{outline:2px solid #fff;outline-offset:3px}
+/* One control size/finish on both launch pages; avoid browser-default white button/input surfaces. */
+#touch .t-btn{min-width:44px;min-height:44px;border:2px solid rgba(168,220,185,.52);background:rgba(5,16,9,.88);color:#f5fff7!important;box-shadow:0 3px 12px rgba(0,0,0,.38);-webkit-appearance:none;appearance:none}
+#touch .t-btn:active,#touch .t-btn.on{background:rgba(31,112,59,.96);border-color:#83e9a3;color:#fff!important}
+#touch .b-gear{width:calc(var(--u) * 1.12)!important;min-width:48px;min-height:48px;font-size:clamp(20px,5vmin,24px)!important;border-color:rgba(130,238,160,.78)!important;background:rgba(7,28,15,.96)!important;color:#fff!important}
+#tsettings{z-index:30!important;background:rgba(0,0,0,.72)!important;backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+#tsettings .ts-card{background:#09130d!important;color:#f0fff3!important;border:1px solid rgba(111,221,143,.42)!important;color-scheme:dark;}
+#tsettings .ts-card button{min-height:38px;border:1px solid rgba(133,207,153,.42);border-radius:9px;background:#14251a;color:#f1fff4;-webkit-appearance:none;appearance:none}
+#tsettings .ts-card button:active,#tsettings .ts-card button.on{background:#236b3c;color:#fff;border-color:#8bffad}
+#tsettings .ts-card input[type=range]{accent-color:#45cf79}
+#tsettings .ts-card input[type=checkbox]{accent-color:#34b866}
+#tsettings .ts-seg{border-color:rgba(133,207,153,.42)}
+#tsettings .ts-seg button{background:#102018;color:#e5f8e9}
+#tsettings .ts-seg button.on{background:#236b3c;color:#fff;border-color:#8bffad}
+#tsettings .ts-close{background:#14251a!important;color:#fff!important}
+#fs{width:48px!important;height:48px!important;right:14px!important;bottom:14px!important;border:1px solid rgba(135,229,164,.72)!important;border-radius:13px!important;background:rgba(5,18,10,.9)!important;color:#fff!important;box-shadow:0 6px 20px rgba(0,0,0,.4);-webkit-appearance:none;appearance:none}
+#fs svg{width:24px!important;height:24px!important;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#stage.awake #fs,#fs:focus-visible{opacity:1;pointer-events:auto}
+#fs:focus-visible,#refull:focus-visible,#touch .t-btn:focus-visible{outline:2px solid #8bffad;outline-offset:3px}
+#refull{min-height:46px!important;padding:10px 20px!important;border:1px solid rgba(135,229,164,.72)!important;border-radius:999px!important;background:rgba(5,18,10,.94)!important;color:#fff!important;font-size:14px!important;font-weight:800!important;box-shadow:0 8px 22px rgba(0,0,0,.42)!important}
+#refull svg{width:19px!important;height:19px!important}
+@media(max-width:800px){#controls-rail .ig-community-card{padding:12px 13px}#controls-rail .ig-community-card h3{font-size:20px}#controls-rail .ig-community-card p{font-size:10.5px}}
