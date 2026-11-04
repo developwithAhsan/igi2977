@@ -287,20 +287,60 @@ const DEBUG = params.has('debug');
   add('log', ['debug log on · ' + navigator.userAgent]);
 })();
 
-// Surface WebGPU failures (console.error, so the ?debug overlay shows them): a mission that exceeds a mobile
-// GPU's buffer/texture limits, or a lost device (out of memory), otherwise fails silently to a black screen.
-if (navigator.gpu && GPUAdapter.prototype.requestDevice) {
-  const orig = GPUAdapter.prototype.requestDevice;
-  GPUAdapter.prototype.requestDevice = async function (desc) {
-    try {
-      const dev = await orig.call(this, desc);
+// WebGPU can expose an adapter but still fail to create its device on older/unstable drivers.
+// The native WebGPU callback only logs that initial failure, leaving the game thread waiting with
+// no frames to pump. During startup, switch to the compiled WebGL 2 renderer instead of a black screen.
+function fallbackFromGpuStartup(reason) {
+  if (!window.RC_GPU_STARTUP_ACTIVE || window.RC_RENDERER !== 'gpu') return;
+  window.RC_GPU_STARTUP_ACTIVE = false;
+  console.error('WebGPU startup failed; trying WebGL 2:', reason);
+  window.setTimeout(() => {
+    if (window.RC_RENDERER !== 'gpu') return;
+    if (!retryWithWebGL(reason)) {
+      showStartupFailure(reason + ' WebGL 2 is unavailable on this browser/device. Open this page with ?debug for details.');
+    }
+  }, 0);
+}
+
+// Surface WebGPU failures (console.error, so the ?debug overlay shows them): GPU device creation failures,
+// driver errors and device loss should never leave the boot cover waiting on an empty frame queue.
+if (navigator.gpu) {
+  const gpuProto = Object.getPrototypeOf(navigator.gpu);
+  if (gpuProto && typeof gpuProto.requestAdapter === 'function') {
+    const requestAdapter = gpuProto.requestAdapter;
+    let startupAdapterMisses = 0;
+    gpuProto.requestAdapter = async function (options) {
       try {
-        dev.addEventListener('uncapturederror', (e) => console.error('WebGPU uncaptured error:', e.error?.message || e.error));
-        dev.lost.then((info) => console.error('WebGPU device lost:', info.reason, info.message));
-      } catch {}
-      return dev;
-    } catch (e) { console.error('WebGPU requestDevice failed:', e.message); throw e; }
-  };
+        const adapter = await requestAdapter.call(this, options);
+        if (!adapter && window.RC_GPU_STARTUP_ACTIVE && window.RC_RENDERER === 'gpu') {
+          startupAdapterMisses++;
+          if (startupAdapterMisses >= 3) fallbackFromGpuStartup('WebGPU could not find a usable adapter after its compatibility retries.');
+        } else if (adapter) startupAdapterMisses = 0;
+        return adapter;
+      } catch (e) {
+        if (window.RC_GPU_STARTUP_ACTIVE && window.RC_RENDERER === 'gpu')
+          fallbackFromGpuStartup('WebGPU adapter request failed: ' + errorMessage(e));
+        throw e;
+      }
+    };
+  }
+  if (typeof GPUAdapter !== 'undefined' && GPUAdapter.prototype.requestDevice) {
+    const requestDevice = GPUAdapter.prototype.requestDevice;
+    GPUAdapter.prototype.requestDevice = async function (desc) {
+      try {
+        const dev = await requestDevice.call(this, desc);
+        try {
+          dev.addEventListener('uncapturederror', (e) => console.error('WebGPU uncaptured error:', e.error?.message || e.error));
+          dev.lost.then((info) => console.error('WebGPU device lost:', info.reason, info.message));
+        } catch {}
+        return dev;
+      } catch (e) {
+        console.error('WebGPU requestDevice failed:', errorMessage(e));
+        fallbackFromGpuStartup('WebGPU could not create a graphics device: ' + errorMessage(e));
+        throw e;
+      }
+    };
+  }
 }
 
 // ------------------------------------------------------------------ game files in OPFS
@@ -1375,7 +1415,9 @@ async function run(session) {
   if (session) await clearNetSaves(session);
   sizeCanvas();
   const script = document.createElement('script');
-  script.src = '/build/recomp.js?v=29';
+  // Load the files from their actual deployed location. This avoids a rewrite-dependent WASM URL
+  // and makes Emscripten's scriptDirectory point at the matching recomp.wasm beside this script.
+  script.src = '/web/build/recomp.js?v=30';
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1389,8 +1431,9 @@ async function run(session) {
   });
   const M = await createRecomp({
     arguments: ['/opfs/' + OPFS_DIR],
+    locateFile: (path, prefix) => path.endsWith('recomp.wasm') ? '/web/build/recomp.wasm' : prefix + path,
     print: (t) => console.log(t),
-    printErr: (t) => console.log(t),
+    printErr: (t) => console.error('[engine]', t),
     preRun: [(m) => {
       if (params.has('mute')) m.ENV.RC_NO_AUDIO = '1';
       if (params.get('exe')) m.ENV.RC_EXE = params.get('exe');
@@ -1418,7 +1461,9 @@ async function run(session) {
     }],
   });
   const canvas = $('canvas');
+  window.RC_GPU_STARTUP_ACTIVE = window.RC_RENDERER === 'gpu';
   if (window.RC_RENDERER === 'gl') {
+    window.RC_GPU_STARTUP_ACTIVE = false;
     if (typeof M._rc_gl_init !== 'function' || !M._rc_gl_init(canvas.width, canvas.height)) throw new Error('WebGL 2 could not start in this browser engine build.');
   } else M._rc_gpu_init(canvas.width, canvas.height);
   new ResizeObserver(() => { sizeCanvas(); M._rc_set_canvas_size(canvas.width, canvas.height); }).observe(canvas);
@@ -1471,6 +1516,7 @@ async function run(session) {
     if (!session || t >= due - 4) {
       const n = M._rc_gpu_pump(1);
       if (n) {
+        window.RC_GPU_STARTUP_ACTIVE = false;
         due = Math.max(due + 1000 / 60, t - 4);
         lastPresent = t;
         if (booted && !pic.done) picCheck();
