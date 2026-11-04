@@ -1743,9 +1743,9 @@ async function boot() {
     showPicker('This browser does not support the local storage needed to import game files. You can still open the chooser, but use a current Chrome/Edge browser in a normal (not private) window to complete the import.');
     return;
   }
-  if (hosted && (forceHostedDownload || !installed)) {
-    status(forceHostedDownload ? 'Refreshing your hosted game files…' : 'Preparing your automatic game download…');
-    $('download').textContent = forceHostedDownload ? 'Refreshing game files automatically' : 'Download game automatically';
+  if (hosted && (forceHostedDownload || !installed || installed.version !== hosted.version)) {
+    status(forceHostedDownload || installed ? 'Updating your automatic game package…' : 'Preparing your automatic game download…');
+    $('download').textContent = forceHostedDownload || installed ? 'Update game files automatically' : 'Download game automatically';
     $('download').classList.remove('hidden');
     $('download').click();
     return;
