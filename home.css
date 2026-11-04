@@ -745,3 +745,62 @@ body.home-page #sitefoot .legal-note a{color:var(--crt-ph-hi);text-decoration:un
   html{scroll-behavior:auto}
   *,*:before,*:after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
 }
+
+
+/* Shared homepage header and footer system on every inner route. */
+body.inner-page .home-header{width:min(calc(100% - 32px),1360px);margin:0 auto}
+body.inner-page #sitefoot.site-footer{
+  box-sizing:border-box;display:grid!important;
+  grid-template-columns:minmax(0,1.4fr) minmax(130px,1fr) minmax(130px,1fr);
+  gap:24px;width:min(calc(100% - 32px),1360px)!important;max-width:1360px!important;
+  margin:24px auto 0!important;padding:28px 0 16px!important;
+  border:0!important;border-top:1px dashed rgba(103,249,149,.28)!important;
+  border-radius:0!important;background:transparent!important;
+  color:rgba(150,255,179,.72)!important;box-shadow:none!important;
+}
+body.inner-page #sitefoot .site-brand{display:inline-flex;align-items:center;gap:10px;color:#d4ffe0!important}
+body.inner-page #sitefoot .brand-logo{width:46px;height:42px;object-fit:contain}
+body.inner-page #sitefoot .brand-copy{display:grid;gap:2px}
+body.inner-page #sitefoot .brand-name{color:#d4ffe0;font:700 15px/1.1 "Barlow Condensed",Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+body.inner-page #sitefoot .brand-tagline{color:rgba(150,255,179,.72);font-size:9px}
+body.inner-page #sitefoot .footer-brand small{display:block;margin-top:10px;color:rgba(150,255,179,.72);font-size:10px}
+body.inner-page #sitefoot h3{margin:0 0 9px;color:#d4ffe0;font:500 19px "Barlow Condensed",Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+body.inner-page #sitefoot ul{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+body.inner-page #sitefoot li a{color:rgba(150,255,179,.72);font-size:11px}
+body.inner-page #sitefoot li a:hover{color:#d4ffe0;text-decoration:underline}
+body.inner-page #sitefoot .legal-note,body.inner-page #sitefoot .copyright{grid-column:1/-1;margin:0;padding-top:13px;border-top:1px dashed rgba(103,249,149,.28);color:rgba(150,255,179,.72);font-size:10px;line-height:1.7}
+body.inner-page #sitefoot .copyright{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;padding-top:0;border:0}
+body.inner-page #sitefoot .legal-note a{color:#d4ffe0;text-decoration:underline}
+@media(max-width:760px){
+  body.inner-page .home-header{width:calc(100% - 30px)}
+  body.inner-page #sitefoot.site-footer{width:calc(100% - 30px)!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px 0 14px!important}
+  body.inner-page #sitefoot .footer-brand{grid-column:1/-1}
+}
+@media(max-width:520px){
+  body.inner-page #sitefoot.site-footer{grid-template-columns:minmax(0,1fr)}
+  body.inner-page #sitefoot.site-footer>*{grid-column:1/-1}
+}
+
+/* Play page: cinematic rotating mission gallery, with no external image dependencies. */
+body:not(.home-page) .igi-visuals{
+  display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);
+  align-items:center;gap:clamp(18px,3vw,36px);padding:clamp(20px,3vw,34px)!important;
+  border:1px solid rgba(103,249,149,.22)!important;
+  background:linear-gradient(120deg,rgba(10,38,20,.96),rgba(3,12,7,.94))!important;
+  box-shadow:inset 0 0 36px rgba(103,249,149,.045),0 16px 40px rgba(0,0,0,.22);
+}
+body:not(.home-page) .igi-gallery-heading{min-width:0}
+body:not(.home-page) .igi-gallery-heading h2{margin:0 0 10px;color:#e1ffe8;font:600 clamp(24px,3vw,36px)/1.08 "Barlow Condensed",Inter,sans-serif;letter-spacing:.035em;text-transform:uppercase}
+body:not(.home-page) .igi-gallery-heading p:last-child{color:#a9cdb2;line-height:1.7}
+body:not(.home-page) .igi-rotator{position:relative;min-width:0;aspect-ratio:16/9;overflow:hidden;border:1px solid rgba(103,249,149,.48);background:#020704;box-shadow:0 14px 36px rgba(0,0,0,.45)}
+body:not(.home-page) .igi-slide{position:absolute;inset:0;margin:0;opacity:0;animation:igiMissionFade 18s infinite}
+body:not(.home-page) .igi-slide:nth-child(1){animation-delay:0s}
+body:not(.home-page) .igi-slide:nth-child(2){animation-delay:6s}
+body:not(.home-page) .igi-slide:nth-child(3){animation-delay:12s}
+body:not(.home-page) .igi-slide img{display:block;width:100%;height:100%;object-fit:cover;filter:saturate(.82) contrast(1.08);transform:scale(1.015)}
+body:not(.home-page) .igi-slide figcaption{position:absolute;left:14px;bottom:13px;padding:6px 10px;border:1px solid rgba(103,249,149,.5);background:rgba(1,9,4,.78);color:#d4ffe0;font:700 10px "IBM Plex Mono",monospace;letter-spacing:.13em}
+body:not(.home-page) .igi-gallery-stamp{position:absolute;right:12px;top:12px;z-index:5;padding:7px 9px;border:1px solid rgba(212,255,224,.5);background:rgba(2,10,5,.76);color:#d4ffe0;font:700 9px/1.5 "IBM Plex Mono",monospace;letter-spacing:.1em;text-align:center}
+body:not(.home-page) .igi-gallery-note{grid-column:2;margin:0;color:#86a991;font-size:11px;letter-spacing:.04em}
+@keyframes igiMissionFade{0%,3%{opacity:0}7%,29%{opacity:1}34%,100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){body:not(.home-page) .igi-slide{animation:none;opacity:0}body:not(.home-page) .igi-slide:first-child{opacity:1}}
+@media(max-width:760px){body:not(.home-page) .igi-visuals{grid-template-columns:minmax(0,1fr);gap:14px}body:not(.home-page) .igi-gallery-note{grid-column:1}}
