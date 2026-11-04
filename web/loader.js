@@ -1823,7 +1823,8 @@ async function boot() {
       : 'The authorised automatic game package could not be reached. Check your connection and reload, or choose your own legally obtained Project I.G.I. folder.');
     return;
   }
-  if (hosted) await refreshConfig(hosted);
+  // ISO installs already contain the shipped config. The legacy folder refresh only accepts a files list.
+  if (hosted && hosted.format !== 'iso') await refreshConfig(hosted);
   ready();
 }
 
@@ -1855,8 +1856,13 @@ function keepPlayerMouse(saved, fresh) {
     invS.forEach((o, k) => { if (saved[o] === 0x0f || saved[o] === 0x10) out[invF[k]] = saved[o]; });
   return out;
 }
-async function refreshConfig(list) {
-  const e = list.find((f) => f.path.toLowerCase() === 'config.qvm');
+async function refreshConfig(source) {
+  // The automatic ISO package is an index object with parts, not the older folder-manifest
+  // array of { path, size } entries. Never call Array.find on that object: it aborts boot()
+  // after a successful install and leaves the player on a black/loading screen.
+  const list = Array.isArray(source) ? source
+    : Array.isArray(source?.files) ? source.files : [];
+  const e = list.find((f) => f && typeof f.path === 'string' && f.path.toLowerCase() === 'config.qvm');
   if (!e) return;
   try {
     const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/') + '?rev=' + CONFIG_REV, { cache: 'no-cache' });
