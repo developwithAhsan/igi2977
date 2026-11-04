@@ -70,11 +70,16 @@ const fail = (error) => {
   const message = errorMessage(error, 'Unknown error while starting the game.');
   const gpuStartupFailure = /webgpu|gpu adapter|requestadapter|requestdevice|gpu device|graphics adapter|no adapter|adapter.*found|device.*lost/i.test(message);
   console.error('Game startup failed:', error);
+  if (gpuStartupFailure && retryWithWebGL(message)) return;
   hideBoot();
   document.body.classList.remove('playing');
   $('panel').classList.remove('hidden');
   if (gpuStartupFailure) {
-    $('crashnote')?.classList.add('hidden');
+    const note = $('crashnote');
+    if (note) {
+      note.textContent = 'Graphics startup failed: ' + message;
+      note.classList.remove('hidden');
+    }
     show('home');
     return;
   }
@@ -94,6 +99,47 @@ const fail = (error) => {
     }
   }
 };
+
+// Retry a WebGPU launch with the already-compiled WebGL 2 renderer. This handles browsers
+// that expose an adapter but fail when the device or renderer is actually initialized.
+function showStartupNotice(message) {
+  const box = $('booting');
+  if (!box) { status(message); return; }
+  showBoot();
+  for (const k of ['t1', 't2', 't3', 't4']) clearTimeout(showBoot[k]);
+  if (stopBootTips) { stopBootTips(); stopBootTips = null; }
+  box.querySelector('.tips')?.classList.add('hidden');
+  const phase = box.querySelector('.boot-phase');
+  if (phase) phase.textContent = message;
+}
+function retryWithWebGL(reason) {
+  if (window.RC_RENDERER !== 'gpu' || params.get('renderer') === 'gl' || !webgl2Available()) return false;
+  try { localStorage.setItem('igi-renderer-gl', String(Date.now())); } catch { /* storage may be blocked */ }
+  const url = new URL(location.href);
+  url.searchParams.set('renderer', 'gl');
+  url.searchParams.set('autoplay', '1');
+  url.searchParams.set('rendererFallback', '1');
+  console.error('WebGPU did not produce a usable game picture; retrying with WebGL 2:', reason);
+  showStartupNotice('WebGPU could not start the game picture. Retrying with WebGL 2…');
+  setTimeout(() => location.replace(url.href), 900);
+  return true;
+}
+function showStartupFailure(message) {
+  showStartupNotice(message);
+  const box = $('booting');
+  const inner = box?.querySelector('.boot-inner');
+  if (!inner) return;
+  let button = $('boot-reload');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'boot-reload';
+    button.type = 'button';
+    button.className = 'btn';
+    button.textContent = 'Reload game';
+    inner.append(button);
+  }
+  button.onclick = () => location.reload();
+}
 const mb = (n) => (n / 1e6).toFixed(0);
 
 // Rotating "intel" tips: a one-time 500 MB download and the first-mission load both take a minute, so the
@@ -1195,6 +1241,8 @@ async function run(session) {
   // display would halve both. Solo play follows the display. A frame is due every 1/60 s, with a little
   // tolerance so a 60 Hz display's own jitter doesn't skip one.
   let due = 0, booted = false, shownFrames = 0, lastPresent = 0, loading = false;
+  const launchStartedAt = performance.now();
+  let firstFrameRecoveryChecked = false;
   // Detect a renderer that keeps presenting completely black frames. After a sustained black picture,
   // remember WebGL2 for this browser and restart once in that renderer (never before Play).
   const pic = { el: null, cx: null, lit: 0, samples: 0, until: 0, done: false, f: 0 };
@@ -1214,17 +1262,19 @@ async function run(session) {
     if (!pic.until) pic.until = performance.now() + 20000;
     if (performance.now() < pic.until || session) return;
     pic.done = true;
-    if (window.RC_RENDERER !== 'gl' && webgl2Available()) {
-      try { localStorage.setItem('igi-renderer-gl', String(Date.now())); } catch { /* storage blocked; this retry still runs */ }
-      status('The game picture is not appearing. Switching to the compatible graphics mode…');
-      const url = new URL(location.href);
-      url.searchParams.set('renderer', 'gl');
-      url.searchParams.set('autoplay', '1');
-      setTimeout(() => location.replace(url.href), 500);
+    if (!retryWithWebGL('WebGPU presented a sustained black picture.')) {
+      showStartupFailure('The game is still producing a black picture. WebGL 2 was already selected or is unavailable. Check that the selected folder is a complete installed game copy, then reload. For a diagnostic report, open this page with ?debug.');
     }
   };
   const frame = (t) => {
     poll(M);
+    if (!booted && !firstFrameRecoveryChecked && t - launchStartedAt >= 150000) {
+      firstFrameRecoveryChecked = true;
+      const message = 'The game has not produced its first frame after 2½ minutes.';
+      if (!retryWithWebGL(message)) {
+        showStartupFailure(message + ' The selected WebGL 2 renderer has not started the game. The imported folder may be incomplete or incompatible, or the browser graphics driver may be blocking this port. Reload and check the browser diagnostic log with ?debug.');
+      }
+    }
     if (!session || t >= due - 4) {
       const n = M._rc_gpu_pump(1);
       if (n) {
