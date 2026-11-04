@@ -45,6 +45,15 @@ const OPFS_DIR = 'rcgame';
 const MARKER = '.installed.json';   // { version } once every file is copied
 const NETPLAY_BASE = new URL(params.get('netplay') || './', location.href).href.replace(/\/?$/, '/');
 const status = (t) => { $('status').textContent = t; };
+const setLoadingProgress = (phase, fraction) => {
+  const value = Math.max(0, Math.min(1, Number(fraction) || 0));
+  const percent = Math.round(value * 100);
+  const bar = $('progress');
+  if (bar) { bar.value = value; bar.setAttribute('aria-valuenow', String(percent)); }
+  const label = $('progress-percent');
+  if (label) label.textContent = percent + '%';
+  status(phase);
+};
 // Errors can be Error objects, browser resource events, or rejected values without a message.
 // Never render "undefined": preserve the useful detail and give resource failures a clear fallback.
 function errorMessage(error, fallback = 'The browser stopped the operation without an error message.') {
@@ -145,18 +154,23 @@ const mb = (n) => (n / 1e6).toFixed(0);
 // Rotating "intel" tips: a one-time 500 MB download and the first-mission load both take a minute, so the
 // wait gets real game tips and a little lore instead of a bare progress bar. Each tip fades to the next.
 const TIPS = [
-  'You are David Llewellyn Jones — ex-SAS, going in alone.',
-  'Open the map computer to see guard positions update in real time.',
-  'Silence is a weapon: the knife and silenced pistol keep you unheard.',
-  'Cut the alarm before a guard reaches the panel, or the whole base wakes up.',
-  'Crouch to steady your aim and shrink your profile.',
-  'Scout with the binoculars before you cross open ground.',
-  'A headshot drops a guard before he can radio for backup.',
-  'Lofted grenades clear a room you can’t safely walk into.',
-  'Anya runs mission control from the air — the clock is always ticking.',
-  'This is the real 2000 game: about 500 MB, downloaded to your device once.',
-  'Nothing leaves your computer — the whole game runs inside your browser.',
-  'The first start is the slow one: after this the game opens straight away.',
+  'FIELD INTEL · David Llewellyn Jones is an ex-SAS operative working alone behind enemy lines.',
+  'MAP COMPUTER · Press C to check the tactical map and track mission information.',
+  'STEALTH · A silenced pistol and knife can help you stay quieter than loud weapons.',
+  'ALARM WATCH · Find and disable alarm systems before guards can call for backup.',
+  'AIMING · Crouching can help steady your aim and keep a lower profile.',
+  'RECON · Use binoculars to scout patrols before crossing exposed ground.',
+  'WEAPON INTEL · Choose your weapon for the situation; a loud firefight can alert nearby guards.',
+  'MISSION TIP · Grenades can clear dangerous positions, but watch your throw and blast radius.',
+  'MISSION CONTROL · Anya provides mission guidance while Jones operates in the field.',
+  'CLASSIC PC CHEAT NOTE · Some demo versions enable cheats after typing NADA at the main menu; retail support varies.',
+  'CHEAT INTEL · ALLAMMO is listed as an unlimited-ammo code for demo builds; it may not work in every version.',
+  'GOD MODE INTEL · ALLGOD is another code documented for demo builds, not guaranteed in retail releases.',
+  'HIDDEN ROUTE · Players have reported a wall-jump shortcut in the Re-supply mission near the green containers.',
+  'WEAPON INTEL · The game includes pistols, submachine guns, rifles, shotguns, grenades and heavier equipment.',
+  'INSTALL NOTE · Your installed game files are stored locally in this browser for repeat launches.',
+  'BUG REPORT · Found a problem? Message @ahsan0world on Instagram and tell us what happened.',
+  'COMMUNITY · Leave a comment below the game to report bugs, share tips or suggest improvements.',
 ];
 function startTips(box) {
   if (!box) return () => {};
@@ -455,7 +469,7 @@ async function importFromPicker(fileList) {
       throw new Error('Could not save ' + e.dest + ': ' + errorMessage(error));
     }
     done += e.f.size;
-    $('progress').value = done / total;
+    setLoadingProgress('Installing game files', done / total);
   }
   const sig = list.map((e) => e.dest + ':' + e.f.size).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sig));
@@ -530,12 +544,12 @@ async function importFiles(list) {
   let done = 0;
   $('progress').classList.remove('hidden');
   for (const e of list) {
-    status(`Copying ${e.dest} (${mb(done)} / ${mb(total)} MB)`);
+    setLoadingProgress('Installing game files', done / total);
     const w = await (await fileHandle(dir, e.dest, true)).createWritable();
     await w.write(e.f);
     await w.close();
     done += e.f.size;
-    $('progress').value = done / total;
+    setLoadingProgress('Installing game files', done / total);
   }
   const sig = list.map((e) => `${e.dest}:${e.f.size}`).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sig));
@@ -597,11 +611,12 @@ async function downloadGame(game) {
   const image = await dl.getFileHandle('image.iso', { create: true });
   let at = game.parts.slice(0, state.done).reduce((s, p) => s + p.size, 0);
   $('progress').classList.remove('hidden');
+  $('eta').classList.add('hidden');
+  setLoadingProgress('Downloading game package', at / game.size);
   for (let i = state.done; i < game.parts.length; i++) {
     const p = game.parts[i];
     const shown = (n) => {
-      status(`Downloading the game: ${mb(at + n)} of ${mb(game.size)} MB`);
-      $('progress').value = (at + n) / game.size;
+      setLoadingProgress('Downloading game package', (at + n) / game.size);
     };
     shown(0);
     const buf = await fetchPart(game.base + p.file, p.size, shown);
@@ -616,7 +631,7 @@ async function downloadGame(game) {
     await s.write(JSON.stringify(state));
     await s.close();
   }
-  status('Installing the game…');
+  setLoadingProgress('Verifying and installing game', 1);
   await importFiles(await isoFiles(await image.getFile()));
   await root.removeEntry(DL_DIR, { recursive: true });
 }
@@ -698,8 +713,7 @@ async function importFromServerInner(list, force = false) {
     const now = performance.now();
     if (!force && now - shownAt < 120) return;   // several workers report at once; don't thrash the DOM
     shownAt = now;
-    status(`Loading necessary files to start the game… ${Math.floor((done / total) * 100)}%`);
-    $('progress').value = done / total;
+    setLoadingProgress('Downloading game files', done / total);
     if (baseDone === null && now - startT > 1500) { baseDone = done; baseT = now; }
     if (baseDone !== null && done < total) {
       const rate = (done - baseDone) / Math.max(0.5, (now - baseT) / 1000);   // bytes/s, steady-state
@@ -1721,6 +1735,7 @@ async function boot() {
   };
   $('download').onclick = async () => {
     $('download').classList.add('hidden');
+    const stopDownloadTips = hosted?.format === 'iso' ? startTips($('tips')) : () => {};
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
       if (!hosted) throw new Error('The authorised game package index could not be reached. Check your connection and reload the page, or choose your own legally obtained game folder.');
@@ -1729,6 +1744,7 @@ async function boot() {
       ready();
     }
     catch (err) { offerDownload(storageProblem(err) || errorMessage(err, 'The automatic game download failed.')); }
+    finally { stopDownloadTips(); }
   };
   $('reset').onclick = (e) => {
     e.preventDefault();
