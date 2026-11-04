@@ -933,3 +933,66 @@ body:not(.home-page) #about-game .facts-table th,body:not(.home-page) #about-gam
 body:not(.home-page) #about-game h2{margin-top:4px}
 body:not(.home-page) .home-header{width:min(calc(100% - 40px),1360px);margin:0 auto}
 @media(max-width:800px){body:not(.home-page) .home-header{width:calc(100% - 28px)}}
+
+
+/* Instagram community panel below the keyboard reference rail. */
+#controls-rail .ig-community-card{
+  margin-top:16px;padding:16px;border:1px solid rgba(47,125,50,.28);
+  border-radius:13px;background:linear-gradient(145deg,#f0f6e8,#fff);
+  color:#26351f;box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+}
+#controls-rail .ig-community-kicker,.ig-social-contact .section-label{
+  margin:0 0 7px;color:#477c3e;font-size:10px;font-weight:850;letter-spacing:.13em;text-transform:uppercase;
+}
+#controls-rail .ig-community-card h3{margin:0 0 7px;color:#1d351d;font:800 21px/1.05 "Barlow Condensed",Inter,sans-serif;letter-spacing:.035em;text-transform:uppercase}
+#controls-rail .ig-community-card p:not(.ig-community-kicker){margin:0 0 12px;color:#52634a;font-size:12px;line-height:1.65}
+#controls-rail .ig-community-card .ig-community-note{margin:10px 0 0!important;font-size:10px!important;color:#718064!important}
+.ig-follow-button{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  min-height:40px;padding:9px 14px;border:1px solid #24652d;border-radius:8px;
+  background:#24652d;color:#fff!important;font-size:12px;font-weight:800;
+  letter-spacing:.04em;text-decoration:none!important;transition:transform .18s,background .18s,box-shadow .18s;
+}
+.ig-follow-button:hover{transform:translateY(-2px);background:#174c22;color:#fff!important;box-shadow:0 8px 18px rgba(36,101,45,.2)}
+.ig-social-contact{
+  margin-top:26px;padding:22px;border:1px solid rgba(47,125,50,.24);
+  border-radius:14px;background:linear-gradient(145deg,#f1f6e9,#fff);
+}
+.ig-social-contact h2{margin:0 0 10px;color:#1d351d;font:800 clamp(23px,3vw,30px)/1.1 "Barlow Condensed",Inter,sans-serif;text-transform:uppercase}
+.ig-social-contact p:not(.section-label){color:#52634a;line-height:1.75}
+body.inner-page #sitefoot.site-footer,body:not(.home-page) #sitefoot.site-footer{
+  display:grid!important;grid-template-columns:minmax(0,1.4fr) minmax(130px,1fr) minmax(130px,1fr);
+  gap:24px;width:min(calc(100% - 32px),1360px)!important;max-width:1360px!important;
+  margin:24px auto 0!important;padding:28px 0 16px!important;border:0!important;
+  border-top:1px dashed rgba(103,249,149,.28)!important;border-radius:0!important;
+  background:transparent!important;color:rgba(150,255,179,.72)!important;box-shadow:none!important;
+}
+body.inner-page #sitefoot .site-brand,body:not(.home-page) #sitefoot .site-brand{display:inline-flex;align-items:center;gap:10px;color:#d4ffe0!important}
+body.inner-page #sitefoot .brand-logo,body:not(.home-page) #sitefoot .brand-logo{width:46px;height:42px;object-fit:contain}
+body.inner-page #sitefoot .brand-copy,body:not(.home-page) #sitefoot .brand-copy{display:grid;gap:2px}
+body.inner-page #sitefoot .brand-name,body:not(.home-page) #sitefoot .brand-name{color:#d4ffe0;font:700 15px/1.1 "Barlow Condensed",Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+body.inner-page #sitefoot .brand-tagline,body:not(.home-page) #sitefoot .brand-tagline{color:rgba(150,255,179,.72);font-size:9px}
+body.inner-page #sitefoot .footer-brand small,body:not(.home-page) #sitefoot .footer-brand small{display:block;margin-top:10px;color:rgba(150,255,179,.72);font-size:10px}
+body.inner-page #sitefoot h3,body:not(.home-page) #sitefoot h3{margin:0 0 9px;color:#d4ffe0;font:500 19px "Barlow Condensed",Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase}
+body.inner-page #sitefoot ul,body:not(.home-page) #sitefoot ul{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+body.inner-page #sitefoot li a,body:not(.home-page) #sitefoot li a{color:rgba(150,255,179,.72);font-size:11px}
+body.inner-page #sitefoot li a:hover,body:not(.home-page) #sitefoot li a:hover{color:#d4ffe0;text-decoration:underline}
+body.inner-page #sitefoot .legal-note,body.inner-page #sitefoot .copyright,
+body:not(.home-page) #sitefoot .legal-note,body:not(.home-page) #sitefoot .copyright{
+  grid-column:1/-1;margin:0;padding-top:13px;border-top:1px dashed rgba(103,249,149,.28);
+  color:rgba(150,255,179,.72);font-size:10px;line-height:1.7;
+}
+body.inner-page #sitefoot .copyright,body:not(.home-page) #sitefoot .copyright{
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;padding-top:0;border:0;
+}
+body.inner-page #sitefoot .legal-note a,body:not(.home-page) #sitefoot .legal-note a{color:#d4ffe0;text-decoration:underline}
+@media(max-width:760px){
+  body.inner-page #sitefoot.site-footer,body:not(.home-page) #sitefoot.site-footer{
+    width:calc(100% - 30px)!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:20px 0 14px!important;
+  }
+  body.inner-page #sitefoot .footer-brand,body:not(.home-page) #sitefoot .footer-brand{grid-column:1/-1}
+}
+@media(max-width:520px){
+  body.inner-page #sitefoot.site-footer,body:not(.home-page) #sitefoot.site-footer{grid-template-columns:minmax(0,1fr)}
+  body.inner-page #sitefoot.site-footer>*,body:not(.home-page) #sitefoot.site-footer>*{grid-column:1/-1}
+}
