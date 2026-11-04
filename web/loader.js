@@ -462,32 +462,198 @@ async function importFromPicker(fileList) {
   await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join(''));
   $('progress').classList.add('hidden');
 }
+const CD_FILES = ['ymbe.afp', 'anys.afp', 'mpzm.afp'];
+
+// A folder the player picks: the installed game (IGI.exe at its top) or the disc itself (the game in pc/)
+function folderFiles(fileList) {
+  // the whole folder, minus its own name: <picked>/a/b.dat -> a/b.dat
+  return [...fileList].map((f) => ({ f, dest: f.webkitRelativePath.split('/').slice(1).join('/') })).filter((e) => e.dest);
+}
+
+// The disc image (.iso): ISO 9660, read in place, with Joliet's long names when the image has them. Each file
+// is a slice of the image, so nothing is held in memory.
+async function isoFiles(file) {
+  const SEC = 2048;
+  const bytes = async (off, n) => new Uint8Array(await file.slice(off, off + n).arrayBuffer());
+  const u32 = (b, at) => b[at] | b[at + 1] << 8 | b[at + 2] << 16 | (b[at + 3] << 24 >>> 0);
+  let root = null, joliet = false;
+  for (let s = 16; s < 32; s++) {   // volume descriptors: 1 primary, 2 supplementary (Joliet), 255 the end
+    const d = await bytes(s * SEC, SEC);
+    if (String.fromCharCode(...d.subarray(1, 6)) !== 'CD001' || d[0] === 255) break;
+    const isJoliet = d[0] === 2 && d[88] === 0x25 && d[89] === 0x2f && [0x40, 0x43, 0x45].includes(d[90]);
+    if ((d[0] === 1 && !root) || isJoliet) { root = { lba: u32(d, 158), size: u32(d, 166) }; joliet = isJoliet; }
+  }
+  if (!root) throw new Error('That file is not a CD image (.iso).');
+  const name = (b) => {
+    if (joliet) { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) s += String.fromCharCode(b[i] << 8 | b[i + 1]); return s.replace(/;\d+$/, ''); }
+    return String.fromCharCode(...b).replace(/;\d+$/, '').replace(/\.$/, '').toLowerCase();
+  };
+  const list = [], seen = new Set();
+  const walk = async (dir, prefix) => {
+    if (seen.has(dir.lba) || seen.size > 4096) return;
+    seen.add(dir.lba);
+    const d = await bytes(dir.lba * SEC, dir.size);
+    for (let at = 0; at < d.length;) {
+      const len = d[at];
+      if (!len) { at = (Math.floor(at / SEC) + 1) * SEC; continue; }   // records don't cross a sector
+      const n = d[at + 32], raw = d.subarray(at + 33, at + 33 + n);
+      const entry = { lba: u32(d, at + 2), size: u32(d, at + 10) };
+      if (!(n === 1 && raw[0] <= 1)) {   // not . or ..
+        const path = prefix + name(raw);
+        if (d[at + 25] & 2) await walk(entry, path + '/');
+        else list.push({ f: file.slice(entry.lba * SEC, entry.lba * SEC + entry.size), dest: path });
+      }
+      at += len;
+    }
+  };
+  await walk(root, '');
+  return list;
+}
+
+async function importFiles(list) {
+  // the disc's layout: the game in pc/, the check files at the root
+  const lower = (e) => e.dest.toLowerCase();
+  if (list.some((e) => lower(e) === 'pc/igi.exe'))
+    list = list.filter((e) => lower(e).startsWith('pc/')).map((e) => ({ f: e.f, dest: e.dest.slice(3) }))
+      .concat(list.filter((e) => CD_FILES.includes(lower(e))));
+  if (!list.some((e) => lower(e).endsWith('.exe')))
+    throw new Error('No IGI.exe there: choose the IGI disc image (.iso), the disc itself, or your installed IGI folder.');
+  const names = new Set(list.map((e) => e.dest.split('/').pop().toLowerCase()));
+  const cd = CD_FILES.filter((n) => !names.has(n));
+  if (cd.length) throw new Error(`Copy ${cd.map((n) => n.toUpperCase()).join(', ')} from the root of the IGI disc into that folder, ` +
+    'next to IGI.exe: the game checks for them. Or choose the disc image (.iso) instead.');
+  const root = await navigator.storage.getDirectory();
+  try { await root.removeEntry(OPFS_DIR, { recursive: true }); } catch {}
+  await navigator.storage.persist?.();
+  const dir = await gameDir(true);
+  const total = list.reduce((s, e) => s + e.f.size, 0);
+  let done = 0;
+  $('progress').classList.remove('hidden');
+  for (const e of list) {
+    status(`Copying ${e.dest} (${mb(done)} / ${mb(total)} MB)`);
+    const w = await (await fileHandle(dir, e.dest, true)).createWritable();
+    await w.write(e.f);
+    await w.close();
+    done += e.f.size;
+    $('progress').value = done / total;
+  }
+  const sig = list.map((e) => `${e.dest}:${e.f.size}`).sort().join('\n');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sig));
+  await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  $('progress').classList.add('hidden');
+}
+
+// ------------------------------------------------------------------ a game the site hosts
+// Off unless the site was built with one (deploy_web.sh GAME=<disc image>), which is only for a game the site
+// may share: one whose rights holder agreed in writing, or a freely redistributable demo. The image sits beside
+// the page in parts (tools/gameparts.py), listed in the file <meta name="rc-game"> names:
+//   { version, name, size, parts: [{ file, size, sha256 }] }
+// The parts are downloaded into OPFS (DL_DIR, resumed part by part after a reload), each checked, then the image
+// is installed as a picked one would be and the download deleted.
+const DL_DIR = 'rcdownload';
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+
+// null when the site hosts no game; { unreachable: host } when it does but its list can't be fetched (a network
+// that blocks the host, or the host down), so the page can say so instead of only offering the player's own copy
+async function hostedGame() {
+  const url = document.querySelector('meta[name="rc-game"]')?.content;
+  if (!url) return null;
+  const abs = new URL(url, location.href);
+  try {
+    const r = await fetch(abs, { cache: 'no-cache' });
+    if (r.ok) return { ...(await r.json()), base: new URL('.', abs).href };
+  } catch {}
+  return { unreachable: abs.host };
+}
+
+async function fetchPart(url, size, progress) {
+  const r = await fetch(url);
+  if (!r.ok || !r.body) throw new Error(`Could not download ${url.split('/').pop()} (${r.status}). Check your connection and reload the page: it carries on where it stopped.`);
+  const buf = new Uint8Array(size);
+  let n = 0;
+  for (const reader = r.body.getReader(); ;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (n + value.length > size) throw new Error('A part of the download is larger than expected: reload the page to try again.');
+    buf.set(value, n);
+    n += value.length;
+    progress(n);
+  }
+  if (n !== size) throw new Error('The download stopped early. Check your connection and reload the page: it carries on where it stopped.');
+  return buf;
+}
+
+async function downloadGame(game) {
+  const root = await navigator.storage.getDirectory();
+  await navigator.storage.persist?.();
+  let dl = await root.getDirectoryHandle(DL_DIR, { create: true });
+  let state = null;
+  try { state = JSON.parse(await (await (await dl.getFileHandle('state.json')).getFile()).text()); } catch {}
+  if (state?.version !== game.version) {   // a download of another version starts over
+    await root.removeEntry(DL_DIR, { recursive: true });
+    dl = await root.getDirectoryHandle(DL_DIR, { create: true });
+    state = { version: game.version, done: 0 };
+  }
+  const image = await dl.getFileHandle('image.iso', { create: true });
+  let at = game.parts.slice(0, state.done).reduce((s, p) => s + p.size, 0);
+  $('progress').classList.remove('hidden');
+  for (let i = state.done; i < game.parts.length; i++) {
+    const p = game.parts[i];
+    const shown = (n) => {
+      status(`Downloading the game: ${mb(at + n)} of ${mb(game.size)} MB`);
+      $('progress').value = (at + n) / game.size;
+    };
+    shown(0);
+    const buf = await fetchPart(game.base + p.file, p.size, shown);
+    if (hex(await crypto.subtle.digest('SHA-256', buf)) !== p.sha256)
+      throw new Error('Part of the download arrived damaged. Reload the page to try again.');
+    const w = await image.createWritable({ keepExistingData: true });
+    await w.write({ type: 'write', position: at, data: buf });
+    await w.close();
+    at += p.size;
+    state.done = i + 1;
+    const s = await (await dl.getFileHandle('state.json', { create: true })).createWritable();
+    await s.write(JSON.stringify(state));
+    await s.close();
+  }
+  status('Installing the game…');
+  await importFiles(await isoFiles(await image.getFile()));
+  await root.removeEntry(DL_DIR, { recursive: true });
+}
+
 // A hosted copy of the game folder: web/serve.py --game DIR serves it at game/, with game/manifest.json
 // listing [{ path, size }]. Each file streams straight into OPFS (a phone couldn't hold 500 MB in memory),
 // and files already there at the right size are kept, so an interrupted download resumes where it stopped.
 async function hostedManifest() {
+  // The authorised reference package publishes a split ISO and a SHA-256 index.json.
+  // Validate every path, part size and digest before offering the download.
   try {
-    const r = await fetch(new URL('manifest.json', GAME_SOURCE).href, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
-    if (!r.ok) return null;
-    const entries = await r.json();
-    if (!Array.isArray(entries)) return null;
-    const seen = new Set(), list = [];
-    for (const entry of entries) {
-      if (!entry || typeof entry.path !== 'string' || !Number.isSafeInteger(entry.size) || entry.size < 0) return null;
-      const path = entry.path.replace(/^\/+/, '');
-      const parts = path.split('/');
-      if (!path || path.includes(String.fromCharCode(92)) || path.includes(String.fromCharCode(0)) ||
-          parts.some((part) => !part || part === '.' || part === '..')) return null;
-      if (SKIP.test(path)) continue;
-      const key = path.toLowerCase();
-      if (seen.has(key)) return null;
-      seen.add(key);
-      list.push({ path, size: entry.size });
-    }
-    const roots = new Set(list.map((entry) => entry.path.split('/')[0].toLowerCase()));
-    return list.some((entry) => entry.path.toLowerCase() === 'igi.exe') &&
-      roots.has('common') && roots.has('missions') ? list : null;
-  } catch { return null; }
+    const indexURL = new URL('index.json', GAME_SOURCE);
+    const r = await fetch(indexURL, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
+    if (!r.ok) throw new Error(`Game package index returned HTTP ${r.status}`);
+    const game = await r.json();
+    if (!game || typeof game.version !== 'string' || !Array.isArray(game.parts) ||
+        !Number.isSafeInteger(game.size) || game.size <= 0) throw new Error('The game package index has an invalid format.');
+    let total = 0;
+    const parts = game.parts.map((part) => {
+      if (!part || typeof part.file !== 'string' || !Number.isSafeInteger(part.size) || part.size <= 0 ||
+          typeof part.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(part.sha256)) {
+        throw new Error('The game package index contains an invalid download part.');
+      }
+      const file = part.file.replace(/^\/+/, '');
+      const segments = file.split('/');
+      if (!file || file.includes('\\\\') || segments.some((x) => !x || x === '.' || x === '..')) {
+        throw new Error('The game package index contains an unsafe file path.');
+      }
+      total += part.size;
+      return { file, size: part.size, sha256: part.sha256.toLowerCase() };
+    });
+    if (!parts.length || total !== game.size) throw new Error('The game package size does not match its parts.');
+    return { ...game, parts, base: new URL('.', indexURL).href, format: 'iso' };
+  } catch (error) {
+    console.warn('Hosted game package unavailable:', error);
+    return null;
+  }
 }
 
 // The game folder is served through a CDN (Cloudflare) that caches it on an edge near the player, so one
@@ -1558,7 +1724,7 @@ async function boot() {
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
       if (!hosted) throw new Error('Automatic download is not configured. Set web/game-source.js to an authorised game-file CDN containing manifest.json, igi.exe, COMMON and MISSIONS; the source must allow CORS from this website.');
-      await importFromServer(hosted, forceHostedDownload);
+      if (hosted.format === 'iso') await downloadGame(hosted);\n      else await importFromServer(hosted, forceHostedDownload);
       ready();
     }
     catch (err) { offerDownload(storageProblem(err) || errorMessage(err, 'The automatic game download failed.')); }
