@@ -819,9 +819,20 @@ body.settings-open:before{z-index:99!important}
 
 
 <section class="comments-section site-comments" id="comments" aria-labelledby="comments-title"><h2 id="comments-title">Join the discussion</h2><p>Share your feedback, questions or gameplay tips with the Project IGI community.</p><div class="disqus-frame-wrap">
-    <iframe id="disqus-frame" title="Project I.G.I. home discussion" credentialless loading="lazy" data-src="/disqus-frame?page=home" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    <iframe id="disqus-frame" title="Project I.G.I. home discussion" credentialless loading="lazy" src="/disqus-frame?page=home" referrerpolicy="strict-origin-when-cross-origin"></iframe>
     <p id="disqus-fallback" class="disqus-fallback" hidden>Comments need a browser that supports secure third-party embeds. Please update Chrome, Edge or your browser and reload this page.</p>
   </div></section>
+<script>
+(function () {
+  var frame = document.getElementById("disqus-frame");
+  if (!frame) return;
+  window.addEventListener("message", function (event) {
+    if (event.source !== frame.contentWindow || !event.data || event.data.type !== "igi-disqus-height") return;
+    var height = Number(event.data.height);
+    if (Number.isFinite(height)) frame.style.height = Math.max(420, Math.min(5000, height)) + "px";
+  });
+})();
+</script>
 <footer id="sitefoot" class="site-footer"><div class="footer-brand"><a class="site-brand" href="/" aria-label="Project IGI Online home"><img src="/logo.png" class="brand-logo" alt=""><span class="brand-copy"><strong class="brand-name">Project IGI Online</strong><span class="brand-tagline">Project IGI Web Edition</span></span></a><small>Independent fan-made browser project.</small></div><div><h3>Pages</h3><ul><li><a href="/play">Play</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li><li><a href="/blog">Blog</a></li><li><a href="/faq">FAQ</a></li><li><a href="/controls">Controls</a></li></ul></div><div><h3>Legal</h3><ul><li><a href="/disclaimer">Disclaimer</a></li><li><a href="/dmca">DMCA</a></li><li><a href="/privacy">Privacy</a></li><li><a href="/terms">Terms</a></li><li><a href="/cookie-policy">Cookie policy</a></li></ul></div><p class="legal-note">Independent fan project. Not affiliated with or endorsed by the original developers or publishers. This site does not host or distribute original game files. Rights holders can submit requests through the <a href="/dmca">DMCA page</a> or <a href="/contact">Contact page</a>.</p><p class="copyright"><span>Fan-made browser project · not an official release or rights-holder website.</span><span>Made with ❤️ and ☕</span><span id="visits" class="foot-visits" aria-live="polite"></span></p></footer>
   <button id="kbd-show" type="button" aria-label="Show keyboard controls" title="Show keyboard controls">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
