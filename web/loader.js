@@ -1824,7 +1824,11 @@ async function boot() {
     return;
   }
   // ISO installs already contain the shipped config. The legacy folder refresh only accepts a files list.
-  if (hosted && hosted.format !== 'iso') await refreshConfig(hosted);
+  // A config refresh is optional: it must never prevent an installed game from reaching the Play screen.
+  if (hosted && hosted.format !== 'iso') {
+    try { await refreshConfig(hosted); }
+    catch (err) { console.warn('Optional config refresh skipped:', errorMessage(err)); }
+  }
   ready();
 }
 
