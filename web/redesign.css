@@ -964,3 +964,16 @@ html body .inner-card a:hover,
 html body .content-section a:hover{
   color:#5dff8a!important;
 }
+
+
+/* 2026-11-04: high-contrast settings controls on the Play page. */
+#kbd-show{background:#0b2412!important;color:#c8ffd8!important;border:1px solid rgba(93,255,138,.72)!important;box-shadow:0 0 0 1px rgba(93,255,138,.12),0 8px 20px rgba(0,0,0,.34)!important}
+#kbd-show:hover,#kbd-show:focus-visible{background:#174326!important;color:#fff!important;border-color:#8bffad!important}
+#kbd :where(select,input,textarea){background:#06140a!important;color:#e5ffeb!important;border:1px solid rgba(130,255,161,.55)!important;color-scheme:dark}
+#kbd select option{background:#07140b!important;color:#e5ffeb!important}
+#kbd .settings-group,#kbd .settings-subsection{background:#0a1b0e!important;border-color:rgba(130,255,161,.34)!important;color:#c8ffd8!important}
+#kbd .settings-group summary,#kbd .settings-subsection h3{color:#d9ffe2!important}
+#kbd .setting-select-row label,#kbd .setting-slider,#kbd .settings-checks label{color:#b9eac5!important}
+#kbd .settings-segment button{background:#102819!important;color:#d9ffe2!important;border-color:rgba(130,255,161,.48)!important}
+#kbd .settings-segment button.selected{background:#236b37!important;color:#fff!important;border-color:#8bffad!important}
+@media(max-width:800px){.home-header{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 0}.home-nav{grid-column:1/-1;grid-row:2;justify-content:flex-start}.home-header-cta{grid-column:2;grid-row:1}.home-brand img{width:48px;height:42px}}
