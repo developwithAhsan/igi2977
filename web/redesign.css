@@ -811,3 +811,156 @@ html body #kbd>.settings-dialog{
   pointer-events:auto!important;
 }
 html body.settings-open:before{z-index:2147482999!important}
+
+
+/* === Project IGI unified dark terminal surfaces ===
+   Keep all pages, settings panels and navigation readable on the green CRT theme.
+   This is presentation-only; game/runtime selectors and page metadata are untouched. */
+:root{
+  --igi-panel-bg:#07140b;
+  --igi-panel-bg-raised:#0b1d10;
+  --igi-panel-border:rgba(93,255,138,.34);
+  --igi-panel-text:#a3ffbb;
+  --igi-panel-heading:#c8ffd8;
+}
+html body .site-header,
+html body .site-nav,
+html body .site-nav[aria-expanded="true"],
+html body .site-nav.is-open,
+html body .menu-toggle,
+html body .page-hero,
+html body .inner-card,
+html body .content-section,
+html body .comments-section,
+html body .final-cta,
+html body .facts-card,
+html body .step-card,
+html body .feature-card,
+html body .blog-card,
+html body .faq-list details,
+html body .game-info-card,
+html body #controls-rail,
+html body #kbd,
+html body #kbd .settings-dialog,
+html body #kbd .kbd-head,
+html body #kbd .settings-group,
+html body #kbd .game-facts-mini,
+html body #sitefoot,
+html body .site-footer{
+  background-color:var(--igi-panel-bg)!important;
+  color:var(--igi-panel-text)!important;
+  border-color:var(--igi-panel-border)!important;
+  box-shadow:inset 0 0 24px rgba(93,255,138,.035),0 12px 32px rgba(0,0,0,.28)!important;
+}
+html body .site-header,
+html body .site-nav{
+  background-image:linear-gradient(180deg,rgba(10,29,15,.98),rgba(3,12,6,.98))!important;
+}
+html body .page-hero,
+html body .inner-card,
+html body .content-section,
+html body .comments-section,
+html body .final-cta,
+html body .facts-card,
+html body .step-card,
+html body .feature-card,
+html body .blog-card,
+html body .faq-list details,
+html body .game-info-card,
+html body #controls-rail,
+html body #kbd,
+html body #sitefoot,
+html body .site-footer{
+  background-image:linear-gradient(180deg,rgba(9,27,14,.98),rgba(3,12,6,.99))!important;
+}
+html body #kbd .kbd-head,
+html body #controls-rail .rail-heading{
+  background:rgba(7,20,11,.98)!important;
+  color:var(--igi-panel-heading)!important;
+  border-color:var(--igi-panel-border)!important;
+}
+html body #kbd .settings-group,
+html body #kbd .game-facts-mini,
+html body #controls-rail .rail-control,
+html body #controls-rail .rail-note{
+  background:rgba(93,255,138,.055)!important;
+  color:var(--igi-panel-text)!important;
+  border-color:var(--igi-panel-border)!important;
+}
+html body #kbd :where(h2,h3,h4,b,strong,summary),
+html body #controls-rail :where(h2,h3,h4,b,strong),
+html body .page-hero :where(h1,h2,h3),
+html body .inner-card :where(h1,h2,h3,h4),
+html body .content-section :where(h1,h2,h3,h4),
+html body .game-info-card :where(h1,h2,h3,h4),
+html body .site-footer :where(h2,h3,h4){
+  color:var(--igi-panel-heading)!important;
+}
+html body #kbd :where(p,label,small,span,li,output),
+html body #controls-rail :where(p,label,small,span,li,dd,dt),
+html body .inner-card :where(p,li,label,small),
+html body .content-section :where(p,li,label,small),
+html body .game-info-card :where(p,li,dd,dt),
+html body .site-footer :where(p,li){
+  color:var(--igi-panel-text)!important;
+}
+html body #kbd :where(input,select,textarea),
+html body #controls-rail :where(input,select,textarea),
+html body .inner-card :where(input,select,textarea),
+html body .content-section :where(input,select,textarea){
+  background:#020a04!important;
+  color:#c8ffd8!important;
+  border:1px solid var(--igi-panel-border)!important;
+  color-scheme:dark;
+}
+html body #kbd select option,
+html body #controls-rail select option,
+html body select option{
+  background:#07140b!important;
+  color:#c8ffd8!important;
+}
+html body #kbd :where(button,.btn),
+html body #controls-rail :where(button,.btn),
+html body .site-header :where(button,.menu-toggle){
+  background:#0a1b0e!important;
+  color:#a3ffbb!important;
+  border-color:var(--igi-panel-border)!important;
+}
+html body #kbd :where(button,.btn):hover,
+html body #controls-rail :where(button,.btn):hover,
+html body .site-header :where(button,.menu-toggle):hover{
+  background:rgba(93,255,138,.14)!important;
+  color:#c8ffd8!important;
+}
+html body .site-nav a,
+html body .site-header .site-brand,
+html body .site-header .brand-name{
+  color:#c8ffd8!important;
+}
+html body .site-nav a:hover,
+html body .site-nav a[aria-current="page"]{
+  background:rgba(93,255,138,.10)!important;
+  color:#c8ffd8!important;
+}
+html body #kbd kbd,
+html body #controls-rail kbd{
+  background:rgba(93,255,138,.10)!important;
+  color:#c8ffd8!important;
+  border-color:var(--igi-panel-border)!important;
+}
+html body #kbd .kbd-foot,
+html body #controls-rail .rail-heading{
+  border-color:var(--igi-panel-border)!important;
+}
+html body .site-footer a,
+html body #sitefoot a,
+html body .inner-card a,
+html body .content-section a{
+  color:#c8ffd8!important;
+}
+html body .site-footer a:hover,
+html body #sitefoot a:hover,
+html body .inner-card a:hover,
+html body .content-section a:hover{
+  color:#5dff8a!important;
+}
