@@ -984,3 +984,7 @@ html body .content-section a:hover{
 #about-game .facts-card{padding:14px}
 #about-game .facts-table th,#about-game .facts-table td{padding:6px 8px}
 #about-game h2{margin-top:4px}
+
+/* Match the homepage header's centred content width on the standalone Play route. */
+body:not(.home-page) .home-header{width:min(calc(100% - 40px),1360px);margin:0 auto}
+@media(max-width:800px){body:not(.home-page) .home-header{width:calc(100% - 28px)}}
