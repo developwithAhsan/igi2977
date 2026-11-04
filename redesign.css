@@ -914,3 +914,22 @@ body.touch #boot-controls{
   align-items:center!important;
   justify-content:center!important;
 }
+
+
+/* 2026-11-04: Play route polish — scoped to the standalone player page. */
+body:not(.home-page) #kbd-show{background:#0b2412!important;color:#c8ffd8!important;border:1px solid rgba(93,255,138,.72)!important;box-shadow:0 0 0 1px rgba(93,255,138,.12),0 8px 20px rgba(0,0,0,.34)!important}
+body:not(.home-page) #kbd-show:hover,body:not(.home-page) #kbd-show:focus-visible{background:#174326!important;color:#fff!important;border-color:#8bffad!important}
+body:not(.home-page) #kbd :where(select,input,textarea){background:#06140a!important;color:#e5ffeb!important;border:1px solid rgba(130,255,161,.55)!important;color-scheme:dark}
+body:not(.home-page) #kbd select option{background:#07140b!important;color:#e5ffeb!important}
+body:not(.home-page) #kbd .settings-group,body:not(.home-page) #kbd .settings-subsection{background:#0a1b0e!important;border-color:rgba(130,255,161,.34)!important;color:#c8ffd8!important}
+body:not(.home-page) #kbd .settings-group summary,body:not(.home-page) #kbd .settings-subsection h3{color:#d9ffe2!important}
+body:not(.home-page) #kbd .setting-select-row label,body:not(.home-page) #kbd .setting-slider,body:not(.home-page) #kbd .settings-checks label{color:#b9eac5!important}
+body:not(.home-page) #kbd .settings-segment button{background:#102819!important;color:#d9ffe2!important;border-color:rgba(130,255,161,.48)!important}
+body:not(.home-page) #kbd .settings-segment button.selected{background:#236b37!important;color:#fff!important;border-color:#8bffad!important}
+body:not(.home-page) #about-game{padding:clamp(18px,2.6vw,30px)!important;gap:12px}
+body:not(.home-page) #about-game .about-grid{gap:18px;align-items:center}
+body:not(.home-page) #about-game .facts-card{padding:14px}
+body:not(.home-page) #about-game .facts-table th,body:not(.home-page) #about-game .facts-table td{padding:6px 8px}
+body:not(.home-page) #about-game h2{margin-top:4px}
+body:not(.home-page) .home-header{width:min(calc(100% - 40px),1360px);margin:0 auto}
+@media(max-width:800px){body:not(.home-page) .home-header{width:calc(100% - 28px)}}
