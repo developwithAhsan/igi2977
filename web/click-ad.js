@@ -10,6 +10,24 @@
 
   try { opened = sessionStorage.getItem(SESSION_KEY) === '1'; } catch (_) {}
 
+  // Monetag runs inside a credentialless same-origin frame so its third-party
+  // requests do not violate the game page's COEP=require-corp isolation.
+  (() => {
+    const supported = 'credentialless' in HTMLIFrameElement.prototype;
+    if (window.crossOriginIsolated && !supported) {
+      console.info('[ads] Monetag skipped: this browser lacks credentialless iframe support; game isolation is kept intact.');
+      return;
+    }
+    const frame = document.createElement('iframe');
+    if (supported) frame.credentialless = true;
+    frame.title = 'Advertisement';
+    frame.tabIndex = -1;
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;width:1px;height:1px;left:-2px;top:-2px;opacity:0;pointer-events:none;border:0';
+    frame.src = '/web/monetag-frame.html';
+    (document.body || document.documentElement).appendChild(frame);
+  })();
+
   document.addEventListener('click', (event) => {
     const el = event.target && event.target.closest
       ? event.target.closest('a, button, [role="button"], input[type="button"], input[type="submit"]')
@@ -29,11 +47,15 @@
       } catch (_) {}
     }
 
-    opened = true;
-    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (_) {}
-
     // This runs synchronously during the trusted click so browsers can allow the new tab.
-    const tab = window.open(AD_URL, '_blank', 'noopener,noreferrer');
-    if (!tab) console.info('[sponsor] Browser blocked the new tab; allow pop-ups for project-igi.online.');
+    // Do not pass "noopener" to window.open here: browsers may return null by design.
+    const tab = window.open(AD_URL, '_blank');
+    if (tab) {
+      try { tab.opener = null; } catch (_) {}
+      opened = true;
+      try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (_) {}
+    } else {
+      console.info('[sponsor] Browser blocked the new tab; allow pop-ups for project-igi.online.');
+    }
   }, true);
 })();
