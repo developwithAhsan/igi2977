@@ -38,6 +38,25 @@ function configuredGameSource() {
   }
 }
 const GAME_SOURCE = configuredGameSource();
+function configuredGameFilesSource() {
+  const raw = params.get('gamefilessource') || window.RC_GAME_FILES_SOURCE || '';
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, location.href);
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password ||
+        (location.protocol === 'https:' && url.protocol !== 'https:')) {
+      throw new Error('Unsupported game-file source URL');
+    }
+    url.search = '';
+    url.hash = '';
+    if (!url.pathname.endsWith('/')) url.pathname += '/';
+    return url;
+  } catch (error) {
+    console.warn('Invalid per-file game source; it will be skipped:', errorMessage(error));
+    return null;
+  }
+}
+const GAME_FILES_SOURCE = configuredGameFilesSource();
 function gameSourceURL(path) {
   return new URL(path.split('/').map(encodeURIComponent).join('/'), GAME_SOURCE).href;
 }
@@ -783,12 +802,12 @@ async function hostedManifest() {
         throw new Error('The folder manifest must contain igi.exe, COMMON and MISSIONS.');
       }
 
-      const signature = files.map((entry) => entry.path + ':' + entry.size).sort().join('\\n');
+      const signature = files.map((entry) => entry.path + ':' + entry.size).sort().join('\n');
       const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
       const fingerprint = [...new Uint8Array(digest)].slice(0, 6)
         .map((byte) => byte.toString(16).padStart(2, '0')).join('');
       const version = typeof manifest?.version === 'string' && manifest.version
-        ? manifest.version : 'files-' + fingerprint;
+        ? manifest.version : fingerprint;
 
       console.info('[download] Using per-file game manifest:', manifestURL.href,
         '| files:', files.length, '| size:', total);
@@ -816,7 +835,7 @@ async function hostedManifest() {
           typeof part.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(part.sha256)) {
         throw new Error('The game package index contains an invalid download part.');
       }
-      const file = part.file.replace(/^\\/+/, '');
+      const file = part.file.replace(/^\/+/, '');
       const segments = file.split('/');
       if (!file || file.includes('\\\\') || segments.some((x) => !x || x === '.' || x === '..')) {
         throw new Error('The game package index contains an unsafe file path.');
@@ -844,7 +863,7 @@ async function importFromServer(source, force = false) {
 
   const stopTips = startTips($('tips'));
   try {
-    try { await importFromServerInner(list, base, prefix, force); }
+    try { await importFromServerInner(list, base, prefix, source?.version || '', force); }
     catch (err) {
       // If the browser evicted OPFS entries, discard the inconsistent install once and retry.
       // Network failures keep completed files: the next visit resumes by checking their exact sizes.
@@ -852,13 +871,13 @@ async function importFromServer(source, force = false) {
       console.warn('The local game folder is inconsistent; rebuilding it once:', err.message);
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(OPFS_DIR, { recursive: true }).catch(() => { /* already gone */ });
-      await importFromServerInner(list, base, prefix, force);
+      await importFromServerInner(list, base, prefix, source?.version || '', force);
     }
   } finally {
     stopTips();
   }
 }
-async function importFromServerInner(list, base, prefix = '', force = false) {
+async function importFromServerInner(list, base, prefix = '', version = '', force = false) {
   await navigator.storage.persist?.();
   const dir = await gameDir(true);
   const total = list.reduce((s, e) => s + e.size, 0);
@@ -960,9 +979,10 @@ async function importFromServerInner(list, base, prefix = '', force = false) {
   const workers = Array.from({ length: Math.min(DL_CONCURRENCY, list.length) }, () => worker());
   await Promise.all(workers);
   shown(true);
-  const signature = list.map((entry) => `${entry.path}:${entry.size}`).sort().join('\\n');
+  const signature = list.map((entry) => entry.path + ':' + entry.size).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
-  await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
+  const fingerprint = [...new Uint8Array(digest)].slice(0, 6).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  await writeMarker(version || fingerprint);
   $('progress').classList.add('hidden');
   $('eta').classList.add('hidden');
 }
