@@ -156,6 +156,10 @@
   ],
   "rewrites": [
     {
+      "source": "/igi-data/:path*",
+      "destination": "https://igi.sagarinfosec.site/:path*"
+    },
+    {
       "source": "/disqus-frame",
       "destination": "/web/disqus-frame.html"
     },
