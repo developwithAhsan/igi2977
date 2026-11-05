@@ -837,7 +837,7 @@ async function hostedManifest() {
       }
       const file = part.file.replace(/^\/+/, '');
       const segments = file.split('/');
-      if (!file || file.includes('\\\\') || segments.some((x) => !x || x === '.' || x === '..')) {
+      if (!file || file.includes('\\') || segments.some((x) => !x || x === '.' || x === '..')) {
         throw new Error('The game package index contains an unsafe file path.');
       }
       total += part.size;
