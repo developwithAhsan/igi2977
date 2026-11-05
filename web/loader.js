@@ -324,9 +324,10 @@ const DEBUG = params.has('debug');
   };
   document.addEventListener('DOMContentLoaded', () => document.body.appendChild(box));
   if (document.body) document.body.appendChild(box);
-  const oe = console.error, ow = console.warn, ol = console.log;
+  const oe = console.error, ow = console.warn, oi = console.info, ol = console.log;
   console.error = (...a) => { add('ERR', a); oe.apply(console, a); };
   console.warn = (...a) => { add('WARN', a); ow.apply(console, a); };
+  console.info = (...a) => { add('INFO', a); oi.apply(console, a); };
   console.log = (...a) => { add('log', a); ol.apply(console, a); };
   window.addEventListener('error', (e) => add('ERR', [e.message, e.filename + ':' + e.lineno]));
   window.addEventListener('unhandledrejection', (e) => add('ERR', ['unhandled rejection:', e.reason]));
@@ -1423,13 +1424,35 @@ function showNetStatus(M, session) {
 }
 
 function webgl2Available() {
-  try {
+  // Ask for the browser's normal WebGL 2 context first. Some ChromeOS drivers reject a
+  // high-performance hint even though their default OpenGL ES 3.0 context works.
+  // Use a fresh throwaway canvas for each attempt and explicitly release a successful
+  // probe context so the real game canvas can obtain its own context afterwards.
+  const attempts = [
+    undefined,
+    { failIfMajorPerformanceCaveat: false },
+    { failIfMajorPerformanceCaveat: false, powerPreference: 'low-power' },
+  ];
+  for (const attributes of attempts) {
     const test = document.createElement('canvas');
-    return !!test.getContext('webgl2', {
-      failIfMajorPerformanceCaveat: false,
-      powerPreference: 'high-performance'
-    });
-  } catch { return false; }
+    let gl = null;
+    try {
+      gl = attributes ? test.getContext('webgl2', attributes) : test.getContext('webgl2');
+      if (!gl) continue;
+      const version = gl.getParameter(gl.VERSION) || 'WebGL 2';
+      const renderer = gl.getParameter(gl.RENDERER) || 'unknown renderer';
+      if (!webgl2Available.reported) {
+        webgl2Available.reported = true;
+        console.info('[renderer] WebGL 2 probe succeeded:', renderer, '|', version);
+      }
+      try { gl.getExtension('WEBGL_lose_context')?.loseContext(); } catch { /* probe cleanup is best-effort */ }
+      return true;
+    } catch (error) {
+      console.warn('[renderer] WebGL 2 probe attempt failed:', errorMessage(error));
+    }
+  }
+  console.warn('[renderer] WebGL 2 is unavailable on this browser/device.');
+  return false;
 }
 function isChromeOSDevice() {
   const ua = navigator.userAgent || '';
@@ -1474,7 +1497,14 @@ async function chooseRendererForLaunch() {
     }
     return 'gpu';
   }
-  if (forced === 'gl') return hasGL ? 'gl' : 'gpu';
+  if (forced === 'gl') {
+    if (hasGL) {
+      console.info('[renderer] WebGL 2 was explicitly requested; using the OpenGL ES 3.0 path.');
+      return 'gl';
+    }
+    console.warn('[renderer] WebGL 2 was explicitly requested but is unavailable; checking WebGPU.');
+    return 'gpu';
+  }
 
   // Keep a previously successful WebGL fallback for this browser.
   try {
@@ -1531,6 +1561,9 @@ async function run(session) {
   document.body.classList.add('playing');   // enables the touch re-fullscreen pill (index.html)
   showBoot();   // cover the black canvas until the first frame renders (see frame loop below)
   window.RC_RENDERER = await chooseRendererForLaunch();   // adapter selection happens only after Play, never as a startup gate
+  console.info('[renderer] selected launch backend:', window.RC_RENDERER,
+    '| ChromeOS:', isChromeOSDevice(), '| crossOriginIsolated:', !!window.crossOriginIsolated,
+    '| WebGPU API:', !!navigator.gpu, '| deviceMemory:', navigator.deviceMemory || 'unknown');
   if (touch) {
     // on a phone the game starts fullscreen; if the player later leaves it, #refull gets them back in
     $('refull').onclick = () => RcTouch.goFullscreen($('stage'), true);
@@ -1587,8 +1620,18 @@ async function run(session) {
   window.RC_GPU_STARTUP_ACTIVE = window.RC_RENDERER === 'gpu';
   if (window.RC_RENDERER === 'gl') {
     window.RC_GPU_STARTUP_ACTIVE = false;
-    if (typeof M._rc_gl_init !== 'function' || !M._rc_gl_init(canvas.width, canvas.height)) throw new Error('WebGL 2 could not start in this browser engine build.');
-  } else M._rc_gpu_init(canvas.width, canvas.height);
+    console.info('[renderer] initializing the compiled WebGL 2 executor on #canvas:', canvas.width + 'x' + canvas.height);
+    if (typeof M._rc_gl_init !== 'function') {
+      throw new Error('This deployed WebAssembly build does not export the WebGL 2 renderer (_rc_gl_init).');
+    }
+    if (!M._rc_gl_init(canvas.width, canvas.height)) {
+      throw new Error('The compiled WebGL 2 renderer failed during initialization. Check the [gl] shader/context messages above.');
+    }
+    console.info('[renderer] WebGL 2 executor initialized; entering the shared DirectDraw frame pump.');
+  } else {
+    console.info('[renderer] initializing the WebGPU executor on #canvas:', canvas.width + 'x' + canvas.height);
+    M._rc_gpu_init(canvas.width, canvas.height);
+  }
   new ResizeObserver(() => { sizeCanvas(); M._rc_set_canvas_size(canvas.width, canvas.height); }).observe(canvas);
   hookInput(M, !!session);
   subtitles(M, touch);
