@@ -17,7 +17,8 @@
     if (!el || opened) return;
 
     // Keep moment-to-moment game controls and settings inputs usable.
-    if (el.closest('#touch, #kbd, #tguide, #booting, [data-no-ad-popup]')) return;
+    if (el.closest('#touch') && !el.matches('#touch .b-gear')) return;
+    if (el.closest('#kbd, #tguide, #booting, [data-no-ad-popup]')) return;
     if (el.hasAttribute('download')) return;
 
     // Do not open the same direct sponsor link twice.
