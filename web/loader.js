@@ -736,8 +736,73 @@ async function downloadGame(game) {
 // listing [{ path, size }]. Each file streams straight into OPFS (a phone couldn't hold 500 MB in memory),
 // and files already there at the right size are kept, so an interrupted download resumes where it stopped.
 async function hostedManifest() {
-  // The authorised reference package publishes a split ISO and a SHA-256 index.json.
-  // Validate every path, part size and digest before offering the download.
+  // Prefer a folder manifest: one HTTP request per original game asset. This makes every
+  // mission/config/map file visible in DevTools > Network and streams each file directly
+  // into OPFS. The split-ISO package remains a fallback for sources without this manifest.
+  const fileSources = [GAME_FILES_SOURCE, GAME_SOURCE].filter(Boolean);
+  const tried = new Set();
+  for (const base of fileSources) {
+    const sourceBase = new URL(base.href || base, location.href);
+    if (tried.has(sourceBase.href)) continue;
+    tried.add(sourceBase.href);
+    try {
+      const manifestURL = new URL('game/manifest.json', sourceBase);
+      const response = await fetch(manifestURL, {
+        cache: 'no-store', mode: 'cors', credentials: 'omit'
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const manifest = await response.json();
+      const rawFiles = Array.isArray(manifest) ? manifest :
+        (Array.isArray(manifest?.files) ? manifest.files : null);
+      if (!rawFiles?.length) throw new Error('The folder manifest has no files array.');
+
+      const seen = new Set();
+      const files = [];
+      let total = 0;
+      for (const entry of rawFiles) {
+        if (!entry || typeof entry.path !== 'string' || !Number.isSafeInteger(entry.size) ||
+            entry.size < 0) throw new Error('The folder manifest contains an invalid file entry.');
+        const path = entry.path;
+        const parts = path.split('/');
+        if (!path || path.startsWith('/') || path.includes('\\') ||
+            parts.some((part) => !part || part === '.' || part === '..')) {
+          throw new Error('The folder manifest contains an unsafe path: ' + path);
+        }
+        if (SKIP.test(path)) continue;
+        const key = path.toLowerCase();
+        if (seen.has(key)) throw new Error('The folder manifest contains a duplicate path: ' + path);
+        seen.add(key);
+        total += entry.size;
+        if (!Number.isSafeInteger(total)) throw new Error('The folder manifest total size is invalid.');
+        files.push({ path, size: entry.size });
+      }
+      const lower = (path) => path.toLowerCase();
+      if (!files.some((entry) => lower(entry.path) === 'igi.exe') ||
+          !files.some((entry) => lower(entry.path).startsWith('common/')) ||
+          !files.some((entry) => lower(entry.path).startsWith('missions/')) || total <= 0) {
+        throw new Error('The folder manifest must contain igi.exe, COMMON and MISSIONS.');
+      }
+
+      const signature = files.map((entry) => entry.path + ':' + entry.size).sort().join('\\n');
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+      const fingerprint = [...new Uint8Array(digest)].slice(0, 6)
+        .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      const version = typeof manifest?.version === 'string' && manifest.version
+        ? manifest.version : 'files-' + fingerprint;
+
+      console.info('[download] Using per-file game manifest:', manifestURL.href,
+        '| files:', files.length, '| size:', total);
+      return {
+        format: 'files', files, total, version,
+        base: sourceBase.href, prefix: 'game/'
+      };
+    } catch (error) {
+      console.warn('[download] Per-file manifest unavailable at', sourceBase.href,
+        '— checking the next source:', errorMessage(error));
+    }
+  }
+
+  // Existing fallback: a split ISO with SHA-256 checksums, downloaded part-by-part.
   try {
     const indexURL = new URL('index.json', GAME_SOURCE);
     const r = await fetch(indexURL, { cache: 'no-store', mode: 'cors', credentials: 'omit' });
@@ -751,7 +816,7 @@ async function hostedManifest() {
           typeof part.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(part.sha256)) {
         throw new Error('The game package index contains an invalid download part.');
       }
-      const file = part.file.replace(/^\/+/, '');
+      const file = part.file.replace(/^\\/+/, '');
       const segments = file.split('/');
       if (!file || file.includes('\\\\') || segments.some((x) => !x || x === '.' || x === '..')) {
         throw new Error('The game package index contains an unsafe file path.');
@@ -760,44 +825,49 @@ async function hostedManifest() {
       return { file, size: part.size, sha256: part.sha256.toLowerCase() };
     });
     if (!parts.length || total !== game.size) throw new Error('The game package size does not match its parts.');
+    console.info('[download] Using split-ISO fallback:', indexURL.href,
+      '| parts:', parts.length, '| size:', total);
     return { ...game, parts, base: new URL('.', indexURL).href, format: 'iso' };
   } catch (error) {
     console.warn('Hosted game package unavailable:', error);
     return null;
   }
 }
-
-// The game folder is served through a CDN (Cloudflare) that caches it on an edge near the player, so one
-// host is already fast: the files are pulled by a pool of workers over the browser's single multiplexed
-// HTTP/2 connection. Each streams straight into OPFS and files already at the right size are skipped, so an
-// interrupted download resumes where it stopped.
+// The game folder is served through a CDN. A pool of workers makes one request per
+// original asset; each response streams directly into OPFS and can resume after a reload.
 const DL_CONCURRENCY = 10;
-async function importFromServer(list, force = false) {
+async function importFromServer(source, force = false) {
+  const list = Array.isArray(source) ? source : source?.files;
+  const base = source?.base || GAME_SOURCE.href;
+  const prefix = source?.prefix || '';
+  if (!Array.isArray(list) || !list.length) throw new Error('The game file manifest is empty.');
+
   const stopTips = startTips($('tips'));
   try {
-    try { await importFromServerInner(list, force); }
+    try { await importFromServerInner(list, base, prefix, force); }
     catch (err) {
-      // A browser short of storage evicts files behind the folder's back: entries still listed can't be opened
-      // ("could not be found at the time an operation was processed"), and a download over such a folder
-      // fails the same way. Start over from an empty folder once; anything else (network) is reported.
+      // If the browser evicted OPFS entries, discard the inconsistent install once and retry.
+      // Network failures keep completed files: the next visit resumes by checking their exact sizes.
       if (!(err && (err.name === 'NotFoundError' || /could not be found/.test(err.message || '')))) throw err;
-      console.warn('the game folder is inconsistent, downloading again from scratch:', err.message);
+      console.warn('The local game folder is inconsistent; rebuilding it once:', err.message);
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(OPFS_DIR, { recursive: true }).catch(() => { /* already gone */ });
-      await importFromServerInner(list, force);
+      await importFromServerInner(list, base, prefix, force);
     }
   } finally {
     stopTips();
   }
 }
-async function importFromServerInner(list, force = false) {
+async function importFromServerInner(list, base, prefix = '', force = false) {
   await navigator.storage.persist?.();
   const dir = await gameDir(true);
   const total = list.reduce((s, e) => s + e.size, 0);
-  let done = 0, shownAt = 0;
+  if (!Number.isFinite(total) || total <= 0) throw new Error('The game manifest has an invalid total size.');
+  let done = 0, doneFiles = 0, shownAt = 0, lastFile = '';
   const startT = performance.now();
-  let baseDone = null, baseT = 0;   // a steady-state anchor (set after ~1.5s) so the ETA isn't noisy at the start
+  let baseDone = null, baseT = 0;
   $('progress').classList.remove('hidden');
+  $('eta').classList.add('hidden');
   const etaText = (secs) => {
     secs = Math.round(secs);
     if (secs >= 110) return `about ${Math.round(secs / 60)} minutes left`;
@@ -805,75 +875,94 @@ async function importFromServerInner(list, force = false) {
     if (secs >= 18) return `about ${Math.round(secs / 10) * 10} seconds left`;
     return 'a few seconds left';
   };
-  const shown = (force) => {
+  const shown = (forceUpdate) => {
     const now = performance.now();
-    if (!force && now - shownAt < 120) return;   // several workers report at once; don't thrash the DOM
+    if (!forceUpdate && now - shownAt < 120) return;
     shownAt = now;
-    setLoadingProgress('Downloading game files', done / total);
+    setLoadingProgress(lastFile
+      ? `Downloading game files · ${doneFiles}/${list.length} · ${lastFile}`
+      : `Checking game files · ${doneFiles}/${list.length}`, done / total);
     if (baseDone === null && now - startT > 1500) { baseDone = done; baseT = now; }
     if (baseDone !== null && done < total) {
-      const rate = (done - baseDone) / Math.max(0.5, (now - baseT) / 1000);   // bytes/s, steady-state
-      // only a time estimate — not the download size (a big MB figure just worries people)
-      if (rate > 60000) { $('eta').textContent = etaText((total - done) / rate); $('eta').classList.remove('hidden'); }
+      const rate = (done - baseDone) / Math.max(0.5, (now - baseT) / 1000);
+      if (rate > 60000) {
+        $('eta').textContent = etaText((total - done) / rate);
+        $('eta').classList.remove('hidden');
+      }
     }
   };
-  // done is counted per completed file (not per chunk): several workers run at once, so a per-chunk counter
-  // couldn't be reset cleanly when a file is retried. 1955 files make the per-file progress fine-grained.
-  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-
-  // big files first, so the pool packs well and the slowest file isn't left for last
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const queue = list.slice().sort((a, b) => b.size - a.size);
 
-  const fetchInto = async (e, fh) => {
-    // no-store: don't also keep a copy in the browser's HTTP cache (OPFS is the permanent store); the CDN
-    // edge cache still serves these, so repeat loads stay fast.
-    // A connection the shared host leaves hanging never ends and never errors, and a download then stops at
-    // some percentage for good (seen at 42% and 60%): abort a fetch that brings nothing for 30 s and retry it.
+  const fetchInto = async (entry, fh) => {
     const ac = new AbortController();
     let stallTimer = setTimeout(() => ac.abort(), 30000);
-    const alive = () => { clearTimeout(stallTimer); stallTimer = setTimeout(() => ac.abort(), 30000); };
+    let writer = null;
+    const alive = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => ac.abort(), 30000);
+    };
     try {
-      const r = await fetch(gameSourceURL(e.path), { cache: 'no-store', mode: 'cors', credentials: 'omit', signal: ac.signal });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const w = await openWriter(fh, OPFS_DIR + '/' + e.path);
-      const reader = r.body.getReader();
+      const url = new URL((prefix + entry.path).split('/').map(encodeURIComponent).join('/'), base).href;
+      const response = await fetch(url, {
+        cache: 'no-store', mode: 'cors', credentials: 'omit', signal: ac.signal
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status} for ${entry.path}`);
+      if (!response.body) throw new Error('The response has no readable stream for ' + entry.path);
+      writer = await openWriter(fh, OPFS_DIR + '/' + entry.path);
+      const reader = response.body.getReader();
       let wrote = 0;
       for (;;) {
         const { done: end, value } = await reader.read();
         if (end) break;
         alive();
-        await w.write(value);
+        await writer.write(value);
         wrote += value.length;
       }
-      await w.close();
-      if (wrote !== e.size) throw new Error(`short read ${wrote}/${e.size}`);
-    } finally { clearTimeout(stallTimer); }
+      await writer.close();
+      writer = null;
+      if (wrote !== entry.size) throw new Error(`short read for ${entry.path}: ${wrote}/${entry.size}`);
+    } catch (error) {
+      if (writer) {
+        try { await writer.abort(); } catch { /* stream may already have closed */ }
+      }
+      throw error;
+    } finally {
+      clearTimeout(stallTimer);
+    }
   };
 
   const worker = async () => {
     for (;;) {
-      const e = queue.shift();
-      if (!e) return;
-      const fh = await fileHandle(dir, e.path, true);
-      if (!force && (await fh.getFile()).size === e.size) { done += e.size; shown(); continue; }
-      // Fetch with retries: a dropped or truncated connection (ERR_CONTENT_LENGTH_MISMATCH, a short body) must
-      // not leave a wrong-sized file that later breaks a mission — re-fetch until the written size is exact.
+      const entry = queue.shift();
+      if (!entry) return;
+      lastFile = entry.path;
+      const fh = await fileHandle(dir, entry.path, true);
+      // A file is considered complete only when its local size matches the manifest.
+      if (!force && (await fh.getFile()).size === entry.size) {
+        done += entry.size; doneFiles++; shown(); continue;
+      }
       let ok = false, lastErr;
       for (let attempt = 0; attempt < 6 && !ok; attempt++) {
-        try { await fetchInto(e, fh); ok = true; }
-        catch (err) { lastErr = err; if (attempt < 5) await sleep(400 * (attempt + 1)); }
+        try { await fetchInto(entry, fh); ok = true; }
+        catch (error) {
+          lastErr = error;
+          if (attempt < 5) await sleep(400 * (attempt + 1));
+        }
       }
-      if (!ok) throw new Error(`Download failed at ${e.path} (${lastErr?.message}). Reload the page to resume where it stopped.`);
-      done += e.size; shown();
+      if (!ok) throw new Error(`Download failed at ${entry.path} (${lastErr?.message || 'network error'}). Reload the page to resume completed files.`);
+      done += entry.size;
+      doneFiles++;
+      shown();
     }
   };
-  // a pool of workers over the one connection; if any throws it surfaces (and the others settle) so a reload can resume
+
   const workers = Array.from({ length: Math.min(DL_CONCURRENCY, list.length) }, () => worker());
   await Promise.all(workers);
   shown(true);
-  const sig = list.map((e) => `${e.path}:${e.size}`).sort().join('\n');
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(sig));
-  await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join(''));
+  const signature = list.map((entry) => `${entry.path}:${entry.size}`).sort().join('\\n');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
+  await writeMarker([...new Uint8Array(digest)].slice(0, 6).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
   $('progress').classList.add('hidden');
   $('eta').classList.add('hidden');
 }
@@ -1952,7 +2041,7 @@ async function boot() {
   };
   $('download').onclick = async () => {
     $('download').classList.add('hidden');
-    const stopDownloadTips = hosted?.format === 'iso' ? startTips($('tips')) : () => {};
+    const stopDownloadTips = hosted ? startTips($('tips')) : () => {};
     try {
       if (!storageAvailable) throw new Error('This browser cannot store game files locally. Open this page in a supported, non-private Chrome/Edge browser profile.');
       if (!hosted) throw new Error('The authorised game package index could not be reached. Check your connection and reload the page, or choose your own legally obtained game folder.');
@@ -2035,7 +2124,11 @@ async function refreshConfig(source) {
   const e = list.find((f) => f && typeof f.path === 'string' && f.path.toLowerCase() === 'config.qvm');
   if (!e) return;
   try {
-    const r = await fetch('game/' + e.path.split('/').map(encodeURIComponent).join('/') + '?rev=' + CONFIG_REV, { cache: 'no-cache' });
+    const assetBase = source?.base || GAME_SOURCE.href;
+    const assetPrefix = source?.prefix || 'game/';
+    const configURL = new URL((assetPrefix + e.path).split('/').map(encodeURIComponent).join('/'), assetBase);
+    configURL.searchParams.set('rev', String(CONFIG_REV));
+    const r = await fetch(configURL, { cache: 'no-cache', mode: 'cors', credentials: 'omit' });
     if (!r.ok) return;
     const buf = await r.arrayBuffer();
     if (buf.byteLength !== e.size) return;
