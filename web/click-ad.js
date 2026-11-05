@@ -38,14 +38,27 @@
     const showFallback = (message) => {
       fallback.hidden = false;
       fallback.textContent = message + ' ';
-      if (!fallback.querySelector('a')) {
-        const link = document.createElement('a');
-        link.href = 'https://igi-3.disqus.com/';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = 'Open Disqus';
-        fallback.appendChild(link);
-      }
+
+      const link = document.createElement('a');
+      link.href = 'https://igi-3.disqus.com/';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open Disqus';
+      fallback.appendChild(link);
+
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.textContent = 'Retry comments';
+      retry.style.cssText = 'margin-inline-start:12px;padding:6px 10px;border:1px solid currentColor;border-radius:7px;background:transparent;color:inherit;font:inherit;cursor:pointer';
+      retry.addEventListener('click', () => {
+        loaded = false;
+        fallback.hidden = true;
+        frame.hidden = false;
+        const url = new URL(frame.src, location.href);
+        url.searchParams.set('retry', String(Date.now()));
+        frame.src = url.href;
+      }, { once: true });
+      fallback.appendChild(retry);
     };
 
     if (!('credentialless' in HTMLIFrameElement.prototype)) {
