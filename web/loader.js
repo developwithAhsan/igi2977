@@ -331,6 +331,10 @@ const DEBUG = params.has('debug');
   window.addEventListener('error', (e) => add('ERR', [e.message, e.filename + ':' + e.lineno]));
   window.addEventListener('unhandledrejection', (e) => add('ERR', ['unhandled rejection:', e.reason]));
   add('log', ['debug log on · ' + navigator.userAgent]);
+  add('log', ['threading: crossOriginIsolated=' + !!window.crossOriginIsolated +
+    ' SharedArrayBuffer=' + (typeof SharedArrayBuffer !== 'undefined') +
+    ' Worker=' + (typeof Worker === 'function') +
+    ' hardwareConcurrency=' + (navigator.hardwareConcurrency || 'unknown')]);
 })();
 
 // WebGPU can expose an adapter but still fail to create its device on older/unstable drivers.
@@ -1464,9 +1468,21 @@ async function chooseRendererForLaunch() {
 
 // These hashes identify the exact committed JavaScript/WebAssembly pair. The assets are
 // served immutable, so both URLs must change whenever either compiled file is replaced.
-const ENGINE_BUILD_VERSION = '34b93755-fa14e4e0';
+const ENGINE_BUILD_VERSION = 'c5fd0c40-fa14e4e0';
+
+function assertThreadedWasmSupport() {
+  if (!window.crossOriginIsolated || typeof SharedArrayBuffer === 'undefined' || typeof Worker !== 'function') {
+    throw new Error('This page is not ready for the threaded WebAssembly game engine. The browser requires a secure, cross-origin-isolated page with COOP: same-origin and COEP: require-corp headers. Reload the official https://project-igi.online/play page; do not use an unisolated mirror or embedded preview.');
+  }
+  try {
+    new WebAssembly.Memory({ initial: 1, maximum: 1, shared: true });
+  } catch (error) {
+    throw new Error('This browser cannot create shared WebAssembly memory required by the game engine: ' + errorMessage(error));
+  }
+}
 
 async function run(session) {
+  assertThreadedWasmSupport();
   const audio = newAudioContext();   // first, while the click that called run() is still a user gesture
   const touch = !session && RcTouch.wanted();
   if (touch) RcTouch.goFullscreen($('stage'));   // also needs the gesture
