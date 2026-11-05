@@ -5,8 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
 <meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex,nofollow">
 <title>Project I.G.I. Community Comments</title>
-<script>try{if(new URLSearchParams(location.search).get("page")==="home")document.documentElement.classList.add("home-comments")}catch(e){}</script>
+<script>
+try {
+  if (new URLSearchParams(location.search).get('page') === 'home') {
+    document.documentElement.classList.add('home-comments');
+  }
+} catch (_) {}
+</script>
 <style>
   :root{color-scheme:light;font:15px/1.5 Inter,system-ui,sans-serif;background:#fff;color:#596579}
   *{box-sizing:border-box}
@@ -28,46 +35,108 @@
 <p id="disqus-status" role="status" aria-live="polite">Connecting to the discussion…</p>
 <div id="disqus_thread"></div>
 <script>
-  var disqus_config = function () {
-    var homeThread = new URLSearchParams(location.search).get('page') === 'home';
-    this.page.url = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
-    this.page.identifier = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
-    this.page.title = homeThread ? 'Project I.G.I. Online — Home Discussion' : 'Project I.G.I. Online — Community Discussion';
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.search);
+  var homeThread = params.get('page') === 'home';
+  var status = document.getElementById('disqus-status');
+  var thread = document.getElementById('disqus_thread');
+  var ready = false;
+  var lastHeight = 0;
+  var resizeQueued = false;
+  var pageUrl = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
+  var pageTitle = homeThread
+    ? 'Project I.G.I. Online — Home Discussion'
+    : 'Project I.G.I. Online — Community Discussion';
+
+  function signal(type, extra) {
+    var payload = Object.assign({ type: type }, extra || {});
+    try { parent.postMessage(payload, location.origin); } catch (_) {}
+  }
+
+  function setStatus(message, withLink) {
+    status.textContent = message + (withLink ? ' ' : '');
+    if (withLink) {
+      var link = document.createElement('a');
+      link.href = 'https://igi-3.disqus.com/';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = 'Open Disqus';
+      status.appendChild(link);
+    }
+  }
+
+  function sendHeight() {
+    resizeQueued = false;
+    var height = Math.ceil(Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+      thread.scrollHeight
+    ));
+    if (height === lastHeight) return;
+    lastHeight = height;
+    signal('igi-disqus-height', { height: height });
+  }
+
+  function queueHeight() {
+    if (resizeQueued) return;
+    resizeQueued = true;
+    requestAnimationFrame(sendHeight);
+  }
+
+  function markReady() {
+    if (ready) return;
+    ready = true;
+    status.hidden = true;
+    signal('igi-disqus-ready');
+    queueHeight();
+  }
+
+  // Preserve the existing URL-based thread identifiers to keep all existing comments.
+  window.disqus_config = function () {
+    this.page.url = pageUrl;
+    this.page.identifier = pageUrl;
+    this.page.title = pageTitle;
     this.callbacks = this.callbacks || {};
-    this.callbacks.onReady = function () {
-      var status = document.getElementById('disqus-status');
-      if (status) status.hidden = true;
-      parent.postMessage({type:'igi-disqus-ready'}, '*');
-    };
+    this.callbacks.onReady = function () { markReady(); };
   };
-  (function () {
-    var d=document,s=d.createElement('script');
-    s.src='https://igi-3.disqus.com/embed.js';
-    s.async=true;
-    s.setAttribute('data-timestamp',String(Date.now()));
-    (d.head||d.body).appendChild(s);
-  })();
-  (function(){
-    var ready = false;
-    var status = document.getElementById('disqus-status');
-    var send=function(){parent.postMessage({type:'igi-disqus-height',height:Math.ceil(document.documentElement.scrollHeight)},'*')};
-    window.addEventListener('message', function(e){ if(e.data && e.data.type === 'igi-disqus-ready') ready = true; });
-    setTimeout(function(){
-      if (status && !status.hidden) {
-        status.textContent = 'Comments did not connect. Check your connection or open the Disqus discussion directly: ';
-        var link = document.createElement('a');
-        link.href = 'https://igi-3.disqus.com/';
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = 'Open Disqus';
-        status.appendChild(link);
+
+  var script = document.createElement('script');
+  script.src = 'https://igi-3.disqus.com/embed.js';
+  script.async = true;
+  script.onload = function () { queueHeight(); };
+  script.onerror = function () {
+    if (ready) return;
+    setStatus('Disqus could not be loaded. Check network filtering or browser extensions, or visit the forum directly:', true);
+    signal('igi-disqus-error', { message: 'Disqus could not be loaded. Open the discussion directly:' });
+    queueHeight();
+  };
+  script.setAttribute('data-timestamp', String(Date.now()));
+  (document.head || document.body).appendChild(script);
+
+  // Detect a real Disqus interface even if its optional onReady callback is unavailable.
+  if ('MutationObserver' in window) {
+    var observer = new MutationObserver(function () {
+      if (thread.querySelector('iframe, .post-list, .textarea-wrapper, .publisher-anchor-color')) {
+        markReady();
+        observer.disconnect();
       }
-      send();
-    }, 15000);
-    if('ResizeObserver' in window){new ResizeObserver(send).observe(document.body);}
-    window.addEventListener('load',send);
-    setInterval(send,1500);
-  })();
+      queueHeight();
+    });
+    observer.observe(thread, { childList: true, subtree: true, attributes: true });
+  }
+
+  if ('ResizeObserver' in window) new ResizeObserver(queueHeight).observe(document.body);
+  window.addEventListener('load', queueHeight);
+  queueHeight();
+
+  window.setTimeout(function () {
+    if (ready) return;
+    setStatus('Comments are taking too long to connect. Check whether Disqus is blocked, or open the forum directly:', true);
+    signal('igi-disqus-error', { message: 'Comments are taking too long to connect. Open the discussion directly:' });
+    queueHeight();
+  }, 30000);
+})();
 </script>
 </body>
 </html>
