@@ -420,23 +420,44 @@ async function gameDir(create) {
   return root.getDirectoryHandle(OPFS_DIR, { create });
 }
 
-async function readMarker() {
+async function readMarker(expectedManifest = null) {
   try {
     const dir = await gameDir(false);
     const f = await (await dir.getFileHandle(MARKER)).getFile();
     const m = JSON.parse(await f.text());
-    // A browser short of storage can evict the game's files but leave the marker (seen in a test profile:
-    // "igi.exe: No such file", and the page waits forever). No executable: treat it as not installed. The
-    // host maps names case-insensitively, so look through the folder rather than ask for one spelling.
-    if (typeof dir.keys !== 'function') return m;   // no folder listing in this browser: trust the marker
-    const rootEntries = new Set();
-    for await (const name of dir.keys()) rootEntries.add(name.toLowerCase());
-    if (!rootEntries.has('igi.exe') || !rootEntries.has('common') || !rootEntries.has('missions')) {
-      console.warn('the saved game folder is missing igi.exe, COMMON or MISSIONS: importing again');
-      return null;
+    // Check the required root folders first; OPFS can evict game data while leaving its marker.
+    if (typeof dir.keys === 'function') {
+      const rootEntries = new Set();
+      for await (const name of dir.keys()) rootEntries.add(name.toLowerCase());
+      if (!rootEntries.has('igi.exe') || !rootEntries.has('common') || !rootEntries.has('missions')) {
+        console.warn('[storage] installed marker exists but a required root game entry is missing');
+        return null;
+      }
+    }
+    // A root-only check misses deleted mission/map files. When a hosted manifest is available,
+    // verify every expected path and byte size before allowing the engine to launch.
+    const expected = Array.isArray(expectedManifest) ? expectedManifest :
+      (Array.isArray(expectedManifest?.files) ? expectedManifest.files : null);
+    if (expected?.length) {
+      for (const entry of expected) {
+        let file;
+        try { file = await (await fileHandle(dir, entry.path, false)).getFile(); }
+        catch (error) {
+          console.warn('[storage] installed game file is missing:', entry.path, error);
+          return null;
+        }
+        if (file.size !== entry.size) {
+          console.warn('[storage] installed game file has wrong size:', entry.path,
+            file.size, 'expected', entry.size);
+          return null;
+        }
+      }
     }
     return m;
-  } catch { return null; }
+  } catch (error) {
+    console.info('[storage] no valid installed-game marker:', error?.message || error);
+    return null;
+  }
 }
 
 async function writeMarker(version) {
@@ -448,8 +469,13 @@ async function writeMarker(version) {
 
 async function fileHandle(dir, relPath, create) {
   const parts = relPath.split('/');
-  for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create });
-  return dir.getFileHandle(parts[parts.length - 1], { create });
+  if (!parts.length || parts.some((part) => !part || part === '.' || part === '..' || part.includes('\\\\'))) {
+    throw new Error('Unsafe game-file path: ' + relPath);
+  }
+  // OPFS may evict a directory between reads. Recreate each parent when importing;
+  // callers doing validation pass create=false and receive NotFoundError normally.
+  for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p, { create: !!create });
+  return dir.getFileHandle(parts[parts.length - 1], { create: !!create });
 }
 
 function opfsWriterWorker() {
@@ -958,7 +984,13 @@ async function importFromServerInner(list, base, prefix = '', version = '', forc
       lastFile = entry.path;
       const fh = await fileHandle(dir, entry.path, true);
       // A file is considered complete only when its local size matches the manifest.
-      if (!force && (await fh.getFile()).size === entry.size) {
+      let localSize = -1;
+      try { localSize = (await fh.getFile()).size; }
+      catch (error) {
+        if (error?.name !== 'NotFoundError') throw error;
+        console.info('[storage] recreating missing local game file:', entry.path);
+      }
+      if (!force && localSize === entry.size) {
         done += entry.size; doneFiles++; shown(); continue;
       }
       let ok = false, lastErr;
@@ -2039,7 +2071,7 @@ async function boot() {
   // A hosted, authorised game folder is installed automatically on first visit.
   // ?devgame forces the same automatic install/refresh even when this browser already has an install marker.
   const hosted = await hostedManifest();
-  const installed = await readMarker();
+  const installed = await readMarker(hosted?.format === 'files' ? hosted : null);
   const forceHostedDownload = params.has('devgame');
   if (hosted) $('reset').textContent = 'Reload the game again';
   const offerDownload = (msg) => {
