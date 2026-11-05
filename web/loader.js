@@ -152,6 +152,35 @@ function retryWithWebGPU(reason) {
 function retryRenderer(reason) {
   return retryWithWebGL(reason) || retryWithWebGPU(reason);
 }
+
+// The WebGL renderer already measures its own back buffer (GL readback is more reliable
+// than sampling a preserveDrawingBuffer:false canvas). Surface those diagnostics to the
+// page and use a confirmed all-black back buffer to trigger the one-time WebGPU fallback.
+window.rcGlRenderer = () =>
+  navigator.userAgent + ' | platform=' + (navigator.platform || 'unknown') + ' | WebGL2=' + webgl2Available();
+
+window.rcGlDiag = (raw) => {
+  let diag;
+  try { diag = typeof raw === 'string' ? JSON.parse(raw) : raw; }
+  catch (err) { console.warn('[GL diagnostics] unreadable report:', raw, err); return; }
+  window.RC_GL_DIAGNOSTICS = diag;
+  console.warn('[GL diagnostics]', diag);
+
+  // A mission report is useful for debugging a later black screen, but must not reboot
+  // a player's session while they are already in a level.
+  if (diag && diag.ph === 'm') return;
+  const blackBackBuffer = Number(diag?.avg) === 0 && Number(diag?.max) === 0;
+  const incompleteFramebuffer = Number.isFinite(Number(diag?.fbo)) && Number(diag.fbo) !== 36053;
+  if (!blackBackBuffer && !incompleteFramebuffer) return;
+
+  const reason = incompleteFramebuffer
+    ? 'WebGL 2 reports an incomplete framebuffer (status ' + diag.fbo + ').'
+    : 'WebGL 2 is presenting frames, but its internal back buffer is completely black.';
+  if (!retryRenderer(reason)) {
+    showStartupFailure(reason + ' Graphics details: ' + JSON.stringify(diag) +
+      '. Restart Chrome completely and check hardware acceleration, then reload this page.');
+  }
+};
 function showStartupFailure(message) {
   showStartupNotice(message);
   const box = $('booting');
@@ -1395,29 +1424,47 @@ function webgl2Available() {
 }
 async function chooseRendererForLaunch() {
   const forced = params.get('renderer');
-  // A fallback retry is explicit: honour it before ChromeOS' normal WebGL preference.
+  // A URL-selected renderer is used only for the one controlled fallback attempt.
   if (forced === 'gpu') return navigator.gpu && typeof navigator.gpu.requestAdapter === 'function' ? 'gpu' : (webgl2Available() ? 'gl' : 'gpu');
   if (forced === 'gl') return webgl2Available() ? 'gl' : 'gpu';
-  if (!params.has('renderer')) {
-    try { if (localStorage.getItem('igi-renderer-gl') && webgl2Available()) return 'gl'; } catch { /* storage blocked */ }
-  }
-  // ChromeOS devices often expose WebGPU adapters whose command submission is unreliable
-  // with this compatibility renderer. Prefer the WebGL 2 path there; keep WebGPU as fallback.
-  const chromeOS = /CrOS/.test(navigator.userAgent);
-  if (chromeOS && webgl2Available()) {
-    window.RC_RENDERER = 'gl';
-    console.info('ChromeOS detected: starting with WebGL 2 for graphics compatibility.');
-    return 'gl';
-  }
+
+  // Keep a previously successful WebGL fallback for this browser, but do not force WebGL
+  // merely because this is ChromeOS. Recent Chromebooks can expose a working WebGPU adapter
+  // even when their WebGL driver initialises without presenting a usable frame.
+  try {
+    const saved = localStorage.getItem('igi-renderer-gl');
+    if (saved && webgl2Available()) return 'gl';
+  } catch { /* storage blocked */ }
+
+  // Prefer WebGPU when the browser can actually provide an adapter. navigator.gpu alone
+  // is not enough: Chrome may expose the API while the GPU process has disabled all adapters.
   if (navigator.gpu && typeof navigator.gpu.requestAdapter === 'function') {
     try {
       let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
       if (!adapter) adapter = await navigator.gpu.requestAdapter().catch(() => null);
-      if (adapter) { window.RC_RENDERER = 'gpu'; return 'gpu'; }
-    } catch { /* try WebGL2 after the player has pressed Play */ }
+      if (adapter) {
+        window.RC_RENDERER = 'gpu';
+        console.info('A WebGPU adapter is available: starting with WebGPU.');
+        return 'gpu';
+      }
+    } catch (err) {
+      console.warn('WebGPU adapter check failed; trying WebGL 2:', errorMessage(err));
+    }
   }
-  return webgl2Available() ? 'gl' : 'gpu';
+
+  if (webgl2Available()) {
+    window.RC_RENDERER = 'gl';
+    console.info('No usable WebGPU adapter; starting with WebGL 2.');
+    return 'gl';
+  }
+  window.RC_RENDERER = 'gpu';
+  console.warn('Neither a WebGPU adapter nor a WebGL 2 context is available.');
+  return 'gpu';
 }
+
+// These hashes identify the exact committed JavaScript/WebAssembly pair. The assets are
+// served immutable, so both URLs must change whenever either compiled file is replaced.
+const ENGINE_BUILD_VERSION = '34b93755-fa14e4e0';
 
 async function run(session) {
   const audio = newAudioContext();   // first, while the click that called run() is still a user gesture
@@ -1436,7 +1483,7 @@ async function run(session) {
   const script = document.createElement('script');
   // Load the files from their actual deployed location. This avoids a rewrite-dependent WASM URL
   // and makes Emscripten's scriptDirectory point at the matching recomp.wasm beside this script.
-  script.src = '/web/build/recomp.js?v=30';
+  script.src = '/web/build/recomp.js?v=' + ENGINE_BUILD_VERSION;
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1450,7 +1497,7 @@ async function run(session) {
   });
   const M = await createRecomp({
     arguments: ['/opfs/' + OPFS_DIR],
-    locateFile: (path, prefix) => path.endsWith('recomp.wasm') ? '/web/build/recomp.wasm' : prefix + path,
+    locateFile: (path, prefix) => path.endsWith('recomp.wasm') ? '/web/build/recomp.wasm?v=' + ENGINE_BUILD_VERSION : prefix + path,
     print: (t) => console.log(t),
     printErr: (t) => console.error('[engine]', t),
     preRun: [(m) => {
