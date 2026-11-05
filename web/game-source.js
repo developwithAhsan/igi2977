@@ -1,8 +1,8 @@
-// Per-file game source: game/manifest.json plus game/<relative-path> assets.
-// It must allow CORS from project-igi.online. Each asset is fetched separately
-// and streamed into this browser's Origin Private File System.
-window.RC_GAME_FILES_SOURCE = window.RC_GAME_FILES_SOURCE || 'https://igi.sagarinfosec.site/';
+// Per-file game source. Requests go through this site's Vercel reverse-proxy route so
+// the browser sees a same-origin URL; this avoids the upstream host's missing CORS header.
+// The route forwards /igi-data/<path> to https://igi.sagarinfosec.site/<path>.
+window.RC_GAME_FILES_SOURCE = window.RC_GAME_FILES_SOURCE || '/igi-data/';
 
-// Fallback package source: a split ISO index.json with SHA-256 checksums.
-// Used if the per-file manifest is unavailable or its CORS policy blocks the browser.
+// Fallback package source: split ISO index.json with SHA-256 checksums.
+// This remains available if the per-file source is unreachable.
 window.RC_GAME_SOURCE = window.RC_GAME_SOURCE || 'https://igi-game.pages.dev/';
