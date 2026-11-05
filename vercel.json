@@ -288,6 +288,10 @@
         {
           "key": "Cross-Origin-Embedder-Policy",
           "value": "require-corp"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
@@ -301,6 +305,10 @@
         {
           "key": "Cross-Origin-Embedder-Policy",
           "value": "require-corp"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
@@ -314,6 +322,10 @@
         {
           "key": "Cross-Origin-Embedder-Policy",
           "value": "require-corp"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
@@ -327,6 +339,10 @@
         {
           "key": "Cross-Origin-Embedder-Policy",
           "value": "require-corp"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     },
@@ -401,6 +417,24 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/build/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-origin"
+        }
+      ]
+    },
+    {
+      "source": "/web/build/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-origin"
         }
       ]
     }
