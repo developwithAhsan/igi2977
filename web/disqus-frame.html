@@ -12,15 +12,20 @@
   *{box-sizing:border-box}
   html,body{margin:0;min-height:100%;background:#fff;color:#596579}
   body{padding:8px}
+  #disqus-status{margin:8px 0 12px;padding:10px 12px;border:1px solid #d8e2dc;border-radius:8px;font-size:13px}
+  #disqus-status a{color:#2f7d32;font-weight:700}
   #disqus_thread{min-height:180px;width:100%;background:#fff;color:#596579}
   #disqus_thread a{color:#2f7d32}
   html.home-comments,html.home-comments body{color-scheme:dark;background:transparent;color:#a9dbb6}
   html.home-comments body{padding:0;font:13px/1.6 "IBM Plex Mono",ui-monospace,monospace}
+  html.home-comments #disqus-status{border-color:rgba(117,249,155,.25);background:rgba(0,0,0,.18);color:#a9dbb6}
+  html.home-comments #disqus-status a{color:#75f99b}
   html.home-comments #disqus_thread{background:transparent;color:#a9dbb6}
   html.home-comments #disqus_thread a{color:#75f99b}
 </style>
 </head>
 <body>
+<p id="disqus-status" role="status" aria-live="polite">Connecting to the discussion…</p>
 <div id="disqus_thread"></div>
 <script>
   var disqus_config = function () {
@@ -28,6 +33,12 @@
     this.page.url = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
     this.page.identifier = homeThread ? 'https://project-igi.online/' : 'https://project-igi.online/play';
     this.page.title = homeThread ? 'Project I.G.I. Online — Home Discussion' : 'Project I.G.I. Online — Community Discussion';
+    this.callbacks = this.callbacks || {};
+    this.callbacks.onReady = function () {
+      var status = document.getElementById('disqus-status');
+      if (status) status.hidden = true;
+      parent.postMessage({type:'igi-disqus-ready'}, '*');
+    };
   };
   (function () {
     var d=document,s=d.createElement('script');
@@ -37,7 +48,22 @@
     (d.head||d.body).appendChild(s);
   })();
   (function(){
+    var ready = false;
+    var status = document.getElementById('disqus-status');
     var send=function(){parent.postMessage({type:'igi-disqus-height',height:Math.ceil(document.documentElement.scrollHeight)},'*')};
+    window.addEventListener('message', function(e){ if(e.data && e.data.type === 'igi-disqus-ready') ready = true; });
+    setTimeout(function(){
+      if (status && !status.hidden) {
+        status.textContent = 'Comments did not connect. Check your connection or open the Disqus discussion directly: ';
+        var link = document.createElement('a');
+        link.href = 'https://igi-3.disqus.com/';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'Open Disqus';
+        status.appendChild(link);
+      }
+      send();
+    }, 15000);
     if('ResizeObserver' in window){new ResizeObserver(send).observe(document.body);}
     window.addEventListener('load',send);
     setInterval(send,1500);
