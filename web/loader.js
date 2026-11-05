@@ -81,7 +81,7 @@ const fail = (error) => {
   const message = errorMessage(error, 'Unknown error while starting the game.');
   const gpuStartupFailure = /webgpu|gpu adapter|requestadapter|requestdevice|gpu device|graphics adapter|no adapter|adapter.*found|device.*lost/i.test(message);
   console.error('Game startup failed:', error);
-  if (gpuStartupFailure && retryWithWebGL(message)) return;
+  if (/webgpu|gpu adapter|requestadapter|requestdevice|gpu device|graphics adapter|no adapter|adapter.*found|device.*lost|webgl|graphics context|renderer/i.test(message) && retryRenderer(message)) return;
   hideBoot();
   document.body.classList.remove('playing');
   $('panel').classList.remove('hidden');
@@ -124,7 +124,7 @@ function showStartupNotice(message) {
   if (phase) phase.textContent = message;
 }
 function retryWithWebGL(reason) {
-  if (window.RC_RENDERER !== 'gpu' || params.get('renderer') === 'gl' || !webgl2Available()) return false;
+  if (window.RC_RENDERER !== 'gpu' || params.has('rendererFallback') || !webgl2Available()) return false;
   try { localStorage.setItem('igi-renderer-gl', String(Date.now())); } catch { /* storage may be blocked */ }
   const url = new URL(location.href);
   url.searchParams.set('renderer', 'gl');
@@ -134,6 +134,23 @@ function retryWithWebGL(reason) {
   showStartupNotice('WebGPU could not start the game picture. Retrying with WebGL 2…');
   setTimeout(() => location.replace(url.href), 900);
   return true;
+}
+// ChromeOS may select WebGL 2 first, but some drivers initialise it without ever drawing.
+// Give WebGPU one controlled retry too; never bounce between renderers indefinitely.
+function retryWithWebGPU(reason) {
+  if (window.RC_RENDERER !== 'gl' || params.has('rendererFallback') ||
+      !navigator.gpu || typeof navigator.gpu.requestAdapter !== 'function') return false;
+  const url = new URL(location.href);
+  url.searchParams.set('renderer', 'gpu');
+  url.searchParams.set('autoplay', '1');
+  url.searchParams.set('rendererFallback', '1');
+  console.error('WebGL 2 did not produce a usable game picture; retrying with WebGPU:', reason);
+  showStartupNotice('WebGL 2 could not draw the game. Retrying with WebGPU…');
+  setTimeout(() => location.replace(url.href), 900);
+  return true;
+}
+function retryRenderer(reason) {
+  return retryWithWebGL(reason) || retryWithWebGPU(reason);
 }
 function showStartupFailure(message) {
   showStartupNotice(message);
@@ -1378,6 +1395,8 @@ function webgl2Available() {
 }
 async function chooseRendererForLaunch() {
   const forced = params.get('renderer');
+  // A fallback retry is explicit: honour it before ChromeOS' normal WebGL preference.
+  if (forced === 'gpu') return navigator.gpu && typeof navigator.gpu.requestAdapter === 'function' ? 'gpu' : (webgl2Available() ? 'gl' : 'gpu');
   if (forced === 'gl') return webgl2Available() ? 'gl' : 'gpu';
   if (!params.has('renderer')) {
     try { if (localStorage.getItem('igi-renderer-gl') && webgl2Available()) return 'gl'; } catch { /* storage blocked */ }
@@ -1500,7 +1519,7 @@ async function run(session) {
     if (!pic.until) pic.until = performance.now() + 20000;
     if (performance.now() < pic.until || session) return;
     pic.done = true;
-    if (!retryWithWebGL('WebGPU presented a sustained black picture.')) {
+    if (!retryRenderer('The selected graphics renderer presented a sustained black picture.')) {
       showStartupFailure('The game is still producing a black picture. WebGL 2 was already selected or is unavailable. Check that the selected folder is a complete installed game copy, then reload. For a diagnostic report, open this page with ?debug.');
     }
   };
@@ -1509,7 +1528,7 @@ async function run(session) {
     if (!booted && !firstFrameRecoveryChecked && t - launchStartedAt >= 60000) {
       firstFrameRecoveryChecked = true;
       const message = 'The game has not produced its first frame after 60 seconds.';
-      if (!retryWithWebGL(message)) {
+      if (!retryRenderer(message)) {
         showStartupFailure(message + ' The selected WebGL 2 renderer has not started the game. The imported folder may be incomplete or incompatible, or the browser graphics driver may be blocking this port. Reload and check the browser diagnostic log with ?debug.');
       }
     }
