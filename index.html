@@ -3,7 +3,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<script async src="https://al5sm.com/tag.min.js" data-zone="12184331" onerror="if(!this.dataset.retried){this.dataset.retried='1';var r=document.createElement('script');r.async=true;r.src=this.src;r.dataset.zone=this.dataset.zone;r.onerror=function(){console.warn('[ads] Monetag tag could not load; check network, browser protection or ad blocker.')};document.head.appendChild(r)}"></script>
+<script>
+(function(){
+  var host=location.hostname.toLowerCase();
+  if(host.endsWith('.vercel.app')){
+    location.replace('https://project-igi.online'+location.pathname+location.search+location.hash);
+  }
+})();
+</script>
 <!-- Analytics is intentionally not connected until the site owner supplies an approved measurement ID and consent setup. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -631,7 +638,7 @@ body.settings-open:before{z-index:99!important}
     <div id="ctltip" class="hidden"></div>
     <div id="locktip" class="hidden">Click the game to capture the mouse (full 360° turning)</div>
     <div id="panel" data-nosnippet>
-      <div id="poster-wrap" aria-hidden="true"><img src="poster.jpg" alt="" onerror="this.closest('#poster-wrap').remove()"><span class="scan"></span><span class="scrim"></span></div>
+      <div id="poster-wrap" aria-hidden="true"><span class="scan"></span><span class="scrim"></span></div>
 
       <!-- loading: browser checks, the first-visit download, errors -->
       <section id="view-loading" class="view">
@@ -863,7 +870,7 @@ body.settings-open:before{z-index:99!important}
 <script defer src="controls.js?v=9"></script>
 <script defer src="touch.js?v=13"></script>
 <script defer src="/web/game-source.js?v=6"></script>
-<script defer src="loader.js?v=66"></script>
+<script defer src="loader.js?v=68"></script>
 <style>
 .home-import-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:14px auto 0}
 .home-import-btn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:10px 16px;cursor:pointer}
