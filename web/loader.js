@@ -497,8 +497,7 @@ function opfsWriterWorker() {
       if (typeof d === 'string') d = new TextEncoder().encode(d);
       if (d instanceof Blob) {   // a picked file: in pieces, not all of it in memory at once
         for (let o = 0; o < d.size; o += 4 << 20) {
-          const piece = new Uint8Array(await d.slice(o, o + (4 << 20)).arrayBuffer());
-          s.at += await s.h.write(piece, { at: s.at });
+          const piece = new Uint8Array(await d.slice(o, o + (4 << 20)).arrayBuffer());          s.at += await s.h.write(piece, { at: s.at });
         }
       } else s.at += await s.h.write(d, { at: s.at });
       return;
@@ -891,13 +890,11 @@ async function importFromServer(source, force = false) {
   try {
     try { await importFromServerInner(list, base, prefix, source?.version || '', force); }
     catch (err) {
-      // If the browser evicted OPFS entries, discard the inconsistent install once and retry.
-      // Network failures keep completed files: the next visit resumes by checking their exact sizes.
+      // Never erase a multi-gigabyte install because one OPFS directory/file vanished.
+      // Re-open the root and let the per-file importer recreate only missing entries.
       if (!(err && (err.name === 'NotFoundError' || /could not be found/.test(err.message || '')))) throw err;
-      console.warn('The local game folder is inconsistent; rebuilding it once:', err.message);
-      const root = await navigator.storage.getDirectory();
-      await root.removeEntry(OPFS_DIR, { recursive: true }).catch(() => { /* already gone */ });
-      await importFromServerInner(list, base, prefix, source?.version || '', force);
+      console.warn('[storage] repairing missing OPFS entries without deleting completed files:', err.message);
+      await importFromServerInner(list, base, prefix, source?.version || '', false);
     }
   } finally {
     stopTips();
@@ -997,8 +994,7 @@ async function importFromServerInner(list, base, prefix = '', version = '', forc
       for (let attempt = 0; attempt < 6 && !ok; attempt++) {
         try { await fetchInto(entry, fh); ok = true; }
         catch (error) {
-          lastErr = error;
-          if (attempt < 5) await sleep(400 * (attempt + 1));
+          lastErr = error;          if (attempt < 5) await sleep(400 * (attempt + 1));
         }
       }
       if (!ok) throw new Error(`Download failed at ${entry.path} (${lastErr?.message || 'network error'}). Reload the page to resume completed files.`);
@@ -1011,6 +1007,21 @@ async function importFromServerInner(list, base, prefix = '', version = '', forc
   const workers = Array.from({ length: Math.min(DL_CONCURRENCY, list.length) }, () => worker());
   await Promise.all(workers);
   shown(true);
+  // Verify every file after all workers finish. Do not write an installed marker if OPFS
+  // evicted or failed to persist even one asset during this 5 GB install.
+  let verified = 0;
+  for (const entry of list) {
+    const file = await (await fileHandle(await gameDir(false), entry.path, false)).getFile();
+    if (file.size !== entry.size) {
+      throw new Error('Game storage verification failed for ' + entry.path +
+        ': found ' + file.size + ' bytes, expected ' + entry.size +
+        '. Free browser storage space and retry; completed files will be kept.');
+    }
+    verified++;
+    if (verified % 100 === 0) {
+      setLoadingProgress('Verifying game files · ' + verified + '/' + list.length, verified / list.length);
+    }
+  }
   const signature = list.map((entry) => entry.path + ':' + entry.size).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
   const fingerprint = [...new Uint8Array(digest)].slice(0, 6).map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -1497,8 +1508,7 @@ window.rcDeviceRestored = () => {
 window.rcRecoverFailed = (final) => {
   if (final) { clearTimeout(gpuFailTimer); gpuReloadPrompt(''); }
 };
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && gpuLostAt) gpuLostAt = performance.now();
+document.addEventListener('visibilitychange', () => {  if (!document.hidden && gpuLostAt) gpuLostAt = performance.now();
 });
 
 function sizeCanvas() {
@@ -2118,7 +2128,19 @@ async function boot() {
     return;
   }
   if (hosted && (forceHostedDownload || !installed || installed.version !== hosted.version)) {
-    status(forceHostedDownload || installed ? 'Updating your automatic game package…' : 'Preparing your automatic game download…');
+    // The source contains about 5 GB. Check browser quota before repeatedly retrying an
+    // install that the device cannot retain; Storage API estimates are advisory, not a guarantee.
+    try {
+      const estimate = await navigator.storage.estimate();
+      const free = Number(estimate.quota || 0) - Number(estimate.usage || 0);
+      if (estimate.quota && free > 0 && hosted.format === 'files' && free < hosted.total * 1.08) {
+        showPicker('Not enough browser storage is available for the complete game (' +
+          mb(hosted.total) + ' MB required; about ' + mb(free) +
+          ' MB currently available). Free device/browser storage, then reload. Completed files are kept.');
+        return;
+      }
+    } catch (error) { console.info('[storage] quota estimate unavailable:', errorMessage(error)); }
+    status(forceHostedDownload || installed ? 'Repairing or updating your automatic game files…' : 'Preparing your automatic game download…');
     $('download').textContent = forceHostedDownload || installed ? 'Update game files automatically' : 'Download game automatically';
     $('download').classList.remove('hidden');
     $('download').click();
@@ -2198,284 +2220,3 @@ function subtitles(M, touch) {
   let last = '', lastSeen = 0, lastBox = '';
   const dec = new TextDecoder('latin1');
   const canvas = $('canvas'), stage = $('stage');
-  setInterval(() => {
-    let text = '', b = null, col = 0;
-    try {
-      if (RcControls.get().subs) {
-        const p = M._rc_subtitle(), mem = new Uint8Array(M.wasmMemory.buffer, p, 512);
-        const end = mem.indexOf(0);
-        text = dec.decode(mem.slice(0, end < 0 ? 512 : end));
-        if (text && M._rc_subtitle_box) { b = Array.from(new Float32Array(M.wasmMemory.buffer, M._rc_subtitle_box(), 5)); col = M._rc_subtitle_color() >>> 0; }
-      }
-    } catch { text = ''; }
-    const now = performance.now();
-    if (text) lastSeen = now;
-    if (!text) { if (last && now - lastSeen > 500) { last = ''; box.classList.add('hidden'); } return; }
-    // the game's 640x480-style screen is a 4:3 box centred in the canvas (letterboxed, or the HUD box in wide mode)
-    const r = canvas.getBoundingClientRect(), S = stage.getBoundingClientRect();
-    const h = Math.min(r.height, (r.width * 3) / 4), w = (h * 4) / 3;
-    const ox = r.left - S.left + (r.width - w) / 2, oy = r.top - S.top + (r.height - h) / 2;
-    const geo = b ? b.map((v) => v.toFixed(3)).join() + '|' + Math.round(w) : '';
-    if (text === last && geo === lastBox) return;
-    last = text; lastBox = geo;
-    const rgb = [(col >> 16) & 255, (col >> 8) & 255, col & 255];
-    const green = rgb[1] > 120 && rgb[1] > rgb[0] * 1.4;   // in play the game writes in green in a green panel
-    box.className = green ? 'panel' : 'band';
-    box.style.color = col ? `rgb(${rgb.join()})` : '';
-    const fs = Math.max(14, Math.min(22, h * 0.04));        // about twice the game's size on a phone
-    box.style.fontSize = `${fs}px`;
-    let x0 = ox + w * 0.05, y0 = oy + h * 0.85, width = w * 0.9, room = h * 0.15;
-    if (b && b[2] > b[0]) {
-      x0 = Math.max(ox, ox + b[0] * w - 4); y0 = Math.max(oy, oy + b[1] * h - 3);
-      width = Math.min(w - (x0 - ox) - 2, Math.max((b[2] - b[0]) * w + 8, w * 0.5));
-      // the room the game's own block leaves: to the bottom of the picture on the cutscene band, else twice its height
-      room = green ? Math.max((b[3] - b[1]) * h * 2.2, h * 0.16) : oy + h - y0;
-    }
-    box.style.left = `${x0}px`; box.style.top = `${y0}px`; box.style.width = `${width}px`; box.style.transform = 'none';
-    box.textContent = text.replace(/\n/g, ' ');
-    // as large as fits that room (about twice the game's size when it fits), never below 14 px (then it grows upwards)
-    for (let f = fs; f >= 14; f -= 1) { box.style.fontSize = `${f}px`; if (box.scrollHeight <= room + 1) break; }
-    if (box.scrollHeight > room + 1 && !green) box.style.top = `${Math.max(oy, oy + h - box.scrollHeight)}px`;   // still too tall: grow upwards
-  }, 120);
-}
-
-// ------------------------------------------------------------------ fullscreen
-
-// The stage (game + overlays) goes fullscreen; the canvas grows with it and the game letterboxes its 4:3
-// picture inside. Alt+Enter (Option+Enter on a Mac) toggles it, as in PC games of the time; it is caught
-// before the game's own key handling so Enter doesn't also reach a menu.
-function setupFullscreen() {
-  const stage = $('stage');
-  const active = () => document.fullscreenElement || document.webkitFullscreenElement;
-  // body.fs drives the touch re-fullscreen pill (index.html): shown only when playing and NOT fullscreen.
-  // Registered unconditionally (even where the desktop button is unavailable) so the pill is always right.
-  const standalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
-  const syncFsClass = () => document.body.classList.toggle('fs', !!active() || standalone());
-  document.addEventListener('fullscreenchange', syncFsClass);
-  document.addEventListener('webkitfullscreenchange', syncFsClass);
-  syncFsClass();
-  const toggle = () => {
-    if (active()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else (stage.requestFullscreen || stage.webkitRequestFullscreen).call(stage)?.catch?.(() => {});
-    $('canvas').focus();
-  };
-  if (!stage.requestFullscreen && !stage.webkitRequestFullscreen) { $('fs').classList.add('hidden'); return; }
-  $('fs').onclick = toggle;
-  const swallow = (e) => {
-    if (e.code !== 'Enter' && e.code !== 'NumpadEnter') return;
-    if (!e.altKey) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if (e.type === 'keydown' && !e.repeat) toggle();
-  };
-  window.addEventListener('keydown', swallow, true);
-  window.addEventListener('keyup', swallow, true);
-  const sync = () => {
-    $('fs-icon').setAttribute('d', active() ? 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5' : 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5');
-    $('fs').title = active() ? 'Exit fullscreen (Alt+Enter or Esc)' : 'Fullscreen (Alt+Enter)';
-  };
-  document.addEventListener('fullscreenchange', sync);
-  document.addEventListener('webkitfullscreenchange', sync);
-  // the button shows while the mouse moves over the stage and fades after a few still seconds
-  let idle;
-  const wake = () => { stage.classList.add('awake'); clearTimeout(idle); idle = setTimeout(() => stage.classList.remove('awake'), 2500); };
-  stage.addEventListener('mousemove', wake);
-  stage.addEventListener('mouseleave', () => stage.classList.remove('awake'));
-  wake();
-}
-
-// once the game starts: a short hint, so players learn the shortcut
-function fullscreenTip() {
-  const tip = $('fstip');
-  if (document.fullscreenElement || document.webkitFullscreenElement || $('fs').classList.contains('hidden')) return;
-  tip.classList.remove('hidden');
-  tip.style.opacity = '1';
-  setTimeout(() => { tip.style.opacity = '0'; }, 5000);
-  setTimeout(() => tip.classList.add('hidden'), 5500);
-}
-
-// and, a moment later, the controls that differ from what players of other shooters expect
-function controlsTip() {
-  const tip = $('ctltip');
-  if (!tip) return;
-  const C = RcControls.get(), right = RcControls.ACTIONS[C.mouse[2]]?.label || 'nothing';
-  const k = (id) => `<kbd>${keyLabel(userKeys[id])}</kbd>`;
-  tip.innerHTML = preset === 'original'
-    ? `Original keys: arrows move · ${k('walkrun')} walk/run · ${k('crouch')} crouch · ${k('jump')} jump · ${k('zoomin')}/${k('zoomout')} zoom · right click: <b>${right}</b> — WASD and more in the Controls panel`
-    : `Right click: <b>${right}</b> · scroll: weapon · ${k('walkrun')} walk/run · ${k('crouch')} crouch · ${k('jump')} jump — change them in the Controls panel`;
-  setTimeout(() => { tip.classList.remove('hidden'); tip.style.opacity = '1'; }, 6000);
-  setTimeout(() => { tip.style.opacity = '0'; }, 16000);
-  setTimeout(() => tip.classList.add('hidden'), 16500);
-}
-
-// ------------------------------------------------------------------ online lobby
-
-async function buildVersion() {
-  // peers must run the same build and game files, or their simulations diverge
-  const marker = await readMarker();
-  const wasm = await fetch('build/recomp.wasm', { method: 'HEAD', cache: 'no-store' }).catch(() => null);
-  // the ETag comes back weak (W/"...") when the response is compressed: compare only its value
-  const etag = (wasm?.headers.get('ETag') || '').replace(/^W\//, '').replace(/"/g, '');
-  return `${marker?.version || 'local'}:${etag || wasm?.headers.get('Content-Length') || '?'}`;
-}
-
-function setupOnline() {
-  const msg = (t) => { $('np-msg').textContent = t; $('np-lobbymsg').textContent = t; };
-  try {
-    $('np-name').value = localStorage.getItem('rc-name') || '';
-    const region = localStorage.getItem('rc-region');
-    if ([...$('np-region').options].some((o) => o.value === region)) $('np-region').value = region;
-  } catch { /* storage blocked */ }
-  if (params.get('join')) $('np-code').value = params.get('join').toUpperCase();
-  let client = null;
-  let lastPlayers = [];
-
-  // create: the host's first connection, which places the room in `region` (the Worker's location hint)
-  async function enter(code, create) {
-    if (client) return;
-    const name = $('np-name').value.trim() || 'Player';
-    try { localStorage.setItem('rc-name', name); localStorage.setItem('rc-region', $('np-region').value); } catch { /* storage blocked */ }
-    msg('Connecting…');
-    let iceServers;   // from the first ticket (TURN credentials last a day)
-    const roomUrl = async () => {   // a fresh ticket each time (they expire after an hour)
-      const res = await fetch(NETPLAY_BASE + '_netplay_ticket', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Online play is not available on this server.');
-      const { ticket, iceServers: ice } = await res.json();
-      iceServers ??= ice;
-      const url = new URL(`netplay/${code}?ticket=${encodeURIComponent(ticket)}`, NETPLAY_BASE);
-      if (create) { url.searchParams.set('create', '1'); url.searchParams.set('region', $('np-region').value); create = false; }
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      return url.href;
-    };
-    let url;
-    try { url = await roomUrl(); } catch (e) { msg(e.message); return; }
-    const invite = new URL(location.href);
-    invite.search = `?join=${code}` + (params.get('netplay') ? `&netplay=${encodeURIComponent(params.get('netplay'))}` : '');
-    $('np-room').textContent = code;
-    $('invite').textContent = invite.href;
-    const version = await buildVersion();
-    let session = null;
-    const left = new Set();
-    const me = client = RcNetplay.connect({
-      url, name, version, reconnectUrl: roomUrl, iceServers, relayOnly: params.get('turn') === 'only',
-      onReconnect(state) { if (session) session.reconnecting = state === 'connecting'; },
-      onLobby(l) {
-        if (client !== me) return;   // a room this page already left
-        if (l.started) { msg('That game has already started.'); leave(); return; }
-        if ($('view-lobby').classList.contains('hidden')) { msg(''); show('lobby'); }
-        $('np-colo').textContent = l.colo ? `Server in ${l.colo}` : '';
-        $('np-players').innerHTML = '';
-        const mine = l.players.find((p) => p.slot === l.you);
-        const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-        for (const p of l.players) {
-          const li = el('li');
-          const direct = p.slot === l.you ? 0 : Math.max(mine?.p2p?.[p.slot] || 0, p.p2p?.[l.you] || 0);
-          const link = p.slot === l.you ? (p.rtt ? `${p.rtt} ms to the room` : 'Connected')
-            : direct ? `Direct connection · ${direct} ms` : 'Connected through the room';
-          const who = el('div', 'who');
-          who.append(el('b', null, p.name), el('small', null, link));
-          li.append(el('div', 'avatar', (p.name || '?').trim().charAt(0).toUpperCase() || '?'), who);
-          if (p.slot === 0) li.append(el('span', 'tag', 'Host'));
-          if (p.slot === l.you) li.append(el('span', 'tag', 'You'));
-          $('np-players').appendChild(li);
-        }
-        if (l.players.length < 2) {
-          const li = el('li', 'empty');
-          li.append(el('div', 'avatar', '?'), el('div', 'who', 'Waiting for your friend to join…'));
-          $('np-players').appendChild(li);
-        }
-        $('np-hostctl').classList.toggle('hidden', !l.host);
-        $('np-start').disabled = l.players.length !== 2;
-        if (l.players.length > 2) msg('This is a 1v1 game: only two players can be in the room.');
-        lastPlayers = l.players;
-        const auto = RcNetplay.autoDelay(l.players);
-        $('np-delay').options[0].textContent = `Auto (${auto} frames, ${Math.round(auto * 1000 / 60)} ms)`;
-        $('np-wait').classList.toggle('hidden', l.host);
-      },
-      onStart(s) {
-        session = { ...s, client, left };
-        run(session).catch(fail);
-      },
-      onLeft(slot) { left.add(slot); },
-      onError(e) { msg(e); setTimeout(() => { if ($('np-msg').textContent === e) msg(''); }, 8000); },
-      onClose() { if (!session && client === me) { client = null; show('online'); msg('Disconnected from the room.'); } },
-    });
-  }
-  function leave() {
-    const c = client;
-    client = null;
-    c?.close();
-    show('online');
-  }
-  $('np-leave').onclick = () => { leave(); msg(''); };
-  $('np-copy').onclick = async () => {
-    const b = $('np-copy');
-    try { await navigator.clipboard.writeText($('invite').textContent); b.textContent = 'Link copied'; }
-    catch { b.textContent = 'Copy failed: share the code instead'; }
-    setTimeout(() => { b.textContent = 'Copy invite link'; }, 2000);
-  };
-
-  const code5 = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
-  $('np-host').onclick = () => enter(code5(), true).catch((e) => msg(e.message));
-  $('np-join').onclick = () => {
-    const code = $('np-code').value.trim().toUpperCase();
-    if (!/^[A-Z0-9]{4,12}$/.test(code)) { msg('Enter the room code from the host.'); return; }
-    enter(code).catch((e) => msg(e.message));
-  };
-  $('np-start').onclick = () => {
-    const v = $('np-delay').value;
-    client?.start(v === 'auto' ? RcNetplay.autoDelay(lastPlayers) : Number(v));
-  };
-}
-
-// Keyboard cheat sheet beside the stage: in-game prompts use controller glyphs (triangle/circle/×/square,
-// L1, R1), so keyboard players need a reference. The CSS (index.html) reserves the panel's space on
-// viewports wide enough and shrinks the stage to match; the body's .kbd-off class (set when the player
-// dismisses the panel, remembered in localStorage) hides the panel and lets the stage reclaim the space.
-function setupKbdHelp() {
-  const off = () => { try { return localStorage.getItem('rc-kbd') === 'hide'; } catch { return false; } };
-  const save = (v) => { try { localStorage.setItem('rc-kbd', v); } catch { /* storage blocked */ } };
-  const apply = () => document.body.classList.toggle('kbd-off', off());
-  // The Settings modal owns #kbd-close; this helper only controls the separate reference rail.
-  $('kbd-show').onclick = () => { save('show'); apply(); };
-  apply();
-}
-
-// The device choice on the landing screen (index.html #device): touch controls + gyroscope, or keyboard and
-// mouse. Preselected from the browser (a coarse pointer on a touch screen), remembered in this browser, and
-// applied right away: the page's phone layout (body.coarse) and the hints follow it, and run() asks
-// RcTouch.wanted() when the game starts.
-function setupDevice() {
-  const box = $('device');
-  if (!box) return;
-  const sync = () => {
-    const touch = RcTouch.wanted();
-    document.body.classList.toggle('coarse', touch);
-    // iPhone Safari has no fullscreen for a page, and its toolbars slide in over the page when a swipe starts
-    // at the screen's edge (looking down starts one at the top): the viewport shrinks, and a stage fixed to
-    // it would resize the game's picture every time. There the stage keeps the largest viewport's size
-    // instead (index.html body.nofs #stage); the toolbar overlaps the bottom until it hides again.
-    document.body.classList.toggle('nofs', touch && !document.fullscreenEnabled && !document.webkitFullscreenEnabled);
-    // the on-screen controls exist from here on (hidden until the game runs), so their settings and layout can
-    // be set up on the landing screen and while the game loads
-    if (touch) {
-      RcTouch.setup($('stage'), $('canvas'));
-      $('home-controls').onclick = () => RcTouch.openSettings();
-      $('boot-controls').onclick = () => RcTouch.openSettings();
-    }
-    for (const b of box.querySelectorAll('button')) {
-      const on = (b.dataset.device === 'touch') === touch;
-      b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
-    }
-  };
-  for (const b of box.querySelectorAll('button')) b.onclick = () => {
-    try { localStorage.setItem('igi-device', b.dataset.device); } catch { /* storage blocked */ }
-    sync();
-  };
-  sync();
-}
-setupDevice();
-setupFullscreen();
-setupKbdHelp();
-setupControls();
-boot().catch(fail);
