@@ -443,7 +443,7 @@ async function readMarker(expectedManifest = null) {
         let file;
         try { file = await (await fileHandle(dir, entry.path, false)).getFile(); }
         catch (error) {
-          console.warn('[storage] installed game file is missing:', entry.path, error);
+          console.info('[storage] installed game needs repair; missing file:', entry.path);
           return null;
         }
         if (file.size !== entry.size) {
@@ -455,7 +455,10 @@ async function readMarker(expectedManifest = null) {
     }
     return m;
   } catch (error) {
-    console.info('[storage] no valid installed-game marker:', error?.message || error);
+    // A missing OPFS directory or marker is normal on the first visit, not a game error.
+    if (error?.name !== 'NotFoundError') {
+      console.info('[storage] installed-game marker could not be read:', error?.message || error);
+    }
     return null;
   }
 }
@@ -784,7 +787,10 @@ async function hostedManifest() {
   // Prefer a folder manifest: one HTTP request per original game asset. This makes every
   // mission/config/map file visible in DevTools > Network and streams each file directly
   // into OPFS. The split-ISO package remains a fallback for sources without this manifest.
-  const fileSources = [GAME_FILES_SOURCE, GAME_SOURCE].filter(Boolean);
+  // Only the per-file CDN has game/manifest.json. The pages.dev fallback is an ISO
+  // package and is discovered via index.json below; probing its nonexistent manifest caused
+  // a predictable 404 on every fresh visit.
+  const fileSources = GAME_FILES_SOURCE ? [GAME_FILES_SOURCE] : [];
   const tried = new Set();
   for (const base of fileSources) {
     const sourceBase = new URL(base.href || base, location.href);
