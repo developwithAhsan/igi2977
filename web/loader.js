@@ -1434,7 +1434,7 @@ function webgl2Available() {
 function isChromeOSDevice() {
   const ua = navigator.userAgent || '';
   const platform = navigator.userAgentData?.platform || navigator.platform || '';
-  return /\\bCrOS\\b/i.test(ua) || /^Chrome OS$/i.test(platform);
+  return /\bCrOS\b/i.test(ua) || /^Chrome OS$/i.test(platform);
 }
 async function webgpuDeviceAvailable() {
   const gpu = navigator.gpu;
