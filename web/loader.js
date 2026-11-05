@@ -1423,46 +1423,87 @@ function showNetStatus(M, session) {
 }
 
 function webgl2Available() {
-  try { const test = document.createElement('canvas'); return !!(test.getContext('webgl2', { failIfMajorPerformanceCaveat: false }) || test.getContext('webgl2')); }
-  catch { return false; }
+  try {
+    const test = document.createElement('canvas');
+    return !!test.getContext('webgl2', {
+      failIfMajorPerformanceCaveat: false,
+      powerPreference: 'high-performance'
+    });
+  } catch { return false; }
+}
+function isChromeOSDevice() {
+  const ua = navigator.userAgent || '';
+  const platform = navigator.userAgentData?.platform || navigator.platform || '';
+  return /\\bCrOS\\b/i.test(ua) || /^Chrome OS$/i.test(platform);
+}
+async function webgpuDeviceAvailable() {
+  const gpu = navigator.gpu;
+  if (!gpu || typeof gpu.requestAdapter !== 'function') return false;
+
+  // Do not treat the presence of navigator.gpu (or an adapter object alone) as proof
+  // that the device can actually be created. Some ChromeOS/Android drivers expose the
+  // API but reject device creation; the C renderer would otherwise wait without a frame.
+  const requests = [{ powerPreference: 'high-performance' }, undefined];
+  for (const options of requests) {
+    let adapter = null;
+    try { adapter = await gpu.requestAdapter(options); } catch { adapter = null; }
+    if (!adapter) continue;
+    let device = null;
+    try {
+      device = await adapter.requestDevice();
+      if (device) {
+        device.destroy();
+        return true;
+      }
+    } catch (err) {
+      console.warn('[renderer] WebGPU adapter could not create a device; checking fallback:', errorMessage(err));
+    }
+  }
+  return false;
 }
 async function chooseRendererForLaunch() {
   const forced = params.get('renderer');
-  // A URL-selected renderer is used only for the one controlled fallback attempt.
-  if (forced === 'gpu') return navigator.gpu && typeof navigator.gpu.requestAdapter === 'function' ? 'gpu' : (webgl2Available() ? 'gl' : 'gpu');
-  if (forced === 'gl') return webgl2Available() ? 'gl' : 'gpu';
+  const hasGL = webgl2Available();
 
-  // Keep a previously successful WebGL fallback for this browser, but do not force WebGL
-  // merely because this is ChromeOS. Recent Chromebooks can expose a working WebGPU adapter
-  // even when their WebGL driver initialises without presenting a usable frame.
+  // A URL-selected renderer is used only for the one controlled fallback attempt.
+  if (forced === 'gpu') {
+    if (await webgpuDeviceAvailable()) return 'gpu';
+    if (hasGL) {
+      console.warn('[renderer] Requested WebGPU is not usable; falling back to WebGL 2.');
+      return 'gl';
+    }
+    return 'gpu';
+  }
+  if (forced === 'gl') return hasGL ? 'gl' : 'gpu';
+
+  // Keep a previously successful WebGL fallback for this browser.
   try {
     const saved = localStorage.getItem('igi-renderer-gl');
-    if (saved && webgl2Available()) return 'gl';
+    if (saved && hasGL) {
+      console.info('[renderer] Reusing the WebGL 2 renderer that previously worked in this browser.');
+      return 'gl';
+    }
   } catch { /* storage blocked */ }
 
-  // Prefer WebGPU when the browser can actually provide an adapter. navigator.gpu alone
-  // is not enough: Chrome may expose the API while the GPU process has disabled all adapters.
-  if (navigator.gpu && typeof navigator.gpu.requestAdapter === 'function') {
-    try {
-      let adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' }).catch(() => null);
-      if (!adapter) adapter = await navigator.gpu.requestAdapter().catch(() => null);
-      if (adapter) {
-        window.RC_RENDERER = 'gpu';
-        console.info('A WebGPU adapter is available: starting with WebGPU.');
-        return 'gpu';
-      }
-    } catch (err) {
-      console.warn('WebGPU adapter check failed; trying WebGL 2:', errorMessage(err));
-    }
-  }
-
-  if (webgl2Available()) {
-    window.RC_RENDERER = 'gl';
-    console.info('No usable WebGPU adapter; starting with WebGL 2.');
+  // Match the known-good reference path on ChromeOS: WebGL 2 / OpenGL ES 3.0.
+  // The GL executor is already included in recomp.wasm. If it presents a black frame,
+  // the existing one-time recovery path retries WebGPU; this avoids an endless renderer loop.
+  if (isChromeOSDevice() && hasGL) {
+    console.info('[renderer] ChromeOS detected: starting with WebGL 2 / OpenGL ES 3.0.');
     return 'gl';
   }
-  window.RC_RENDERER = 'gpu';
-  console.warn('Neither a WebGPU adapter nor a WebGL 2 context is available.');
+
+  // Elsewhere, require a real WebGPU device, not just navigator.gpu or an adapter handle.
+  if (await webgpuDeviceAvailable()) {
+    console.info('[renderer] WebGPU adapter and device are available; starting with WebGPU.');
+    return 'gpu';
+  }
+
+  if (hasGL) {
+    console.info('[renderer] WebGPU could not create a device; starting with WebGL 2 / OpenGL ES 3.0.');
+    return 'gl';
+  }
+  console.error('[renderer] Neither a usable WebGPU device nor a WebGL 2 context is available.');
   return 'gpu';
 }
 
