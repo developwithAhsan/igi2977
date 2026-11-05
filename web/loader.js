@@ -544,7 +544,7 @@ async function openWriter(fh, path) {
 
 
 // installer leftovers the game never reads: not worth copying into the browser
-const SKIP = /^(directx[^/]*\/|.*\.(mp4|ds_store)$)|(^|\/)\.DS_Store$/i;
+const SKIP = /^(directx[^/]*\/|.*\.(mp4|ds_store)$)|(^|\/)(\.DS_Store|SETUPREG\.EXE)$/i;
 
 async function importFromPicker(fileList) {
   const selected = Array.from(fileList || []);
