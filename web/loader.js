@@ -886,7 +886,9 @@ async function hostedManifest() {
 }
 // The game folder is served through a CDN. A pool of workers makes one request per
 // original asset; each response streams directly into OPFS and can resume after a reload.
-const DL_CONCURRENCY = 10;
+// Keep the number of simultaneous requests modest: 10 parallel OPFS writers can
+// overwhelm ChromeOS storage/network scheduling and leave the final few files stalled.
+const DL_CONCURRENCY = 4;
 async function importFromServer(source, force = false) {
   const list = Array.isArray(source) ? source : source?.files;
   const base = source?.base || GAME_SOURCE.href;
@@ -941,79 +943,129 @@ async function importFromServerInner(list, base, prefix = '', version = '', forc
   };
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const queue = list.slice().sort((a, b) => b.size - a.size);
+  const OPERATION_TIMEOUT = 60000;
+  let stopWorkers = false;
 
   const fetchInto = async (entry, fh) => {
     const ac = new AbortController();
-    let stallTimer = setTimeout(() => ac.abort(), 30000);
-    let writer = null;
-    const alive = () => {
-      clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => ac.abort(), 30000);
-    };
+    let reader = null, writer = null, closed = false;
+    const within = (promise, label) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        ac.abort();
+        try { reader?.cancel(); } catch {}
+        reject(new Error(`${label} timed out after ${OPERATION_TIMEOUT / 1000}s for ${entry.path}`));
+      }, OPERATION_TIMEOUT);
+      Promise.resolve(promise).then(
+        (value) => { clearTimeout(timer); resolve(value); },
+        (error) => { clearTimeout(timer); reject(error); }
+      );
+    });
     try {
       const url = new URL((prefix + entry.path).split('/').map(encodeURIComponent).join('/'), base).href;
-      const response = await fetch(url, {
+      const response = await within(fetch(url, {
         cache: 'no-store', mode: 'cors', credentials: 'omit', signal: ac.signal
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status} for ${entry.path}`);
+      }), 'Request');
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status} for ${entry.path}`);
+        error.status = response.status;
+        throw error;
+      }
       if (!response.body) throw new Error('The response has no readable stream for ' + entry.path);
-      writer = await openWriter(fh, OPFS_DIR + '/' + entry.path);
-      const reader = response.body.getReader();
+      const lengthHeader = Number(response.headers.get('content-length'));
+      if (Number.isFinite(lengthHeader) && lengthHeader > 0 && lengthHeader !== entry.size) {
+        throw new Error(`Content-Length mismatch for ${entry.path}: ${lengthHeader}/${entry.size}`);
+      }
+      writer = await within(openWriter(fh, OPFS_DIR + '/' + entry.path), 'Storage open');
+      reader = response.body.getReader();
       let wrote = 0;
       for (;;) {
-        const { done: end, value } = await reader.read();
+        const { done: end, value } = await within(reader.read(), 'Network read');
         if (end) break;
-        alive();
-        await writer.write(value);
-        wrote += value.length;
+        if (!value?.byteLength) continue;
+        if (wrote + value.byteLength > entry.size) {
+          throw new Error(`File is larger than the manifest for ${entry.path}: exceeds ${entry.size} bytes`);
+        }
+        await within(writer.write(value), 'Storage write');
+        wrote += value.byteLength;
+        aliveProgress();
       }
-      await writer.close();
+      if (wrote !== entry.size) {
+        throw new Error(`Short download for ${entry.path}: received ${wrote}/${entry.size} bytes`);
+      }
+      await within(writer.close(), 'Storage close');
+      closed = true;
       writer = null;
-      if (wrote !== entry.size) throw new Error(`short read for ${entry.path}: ${wrote}/${entry.size}`);
     } catch (error) {
-      if (writer) {
-        try { await writer.abort(); } catch { /* stream may already have closed */ }
+      try { await reader?.cancel(); } catch {}
+      if (writer && !closed) {
+        try { await writer.abort(); } catch {}
       }
       throw error;
     } finally {
-      clearTimeout(stallTimer);
+      try { reader?.releaseLock(); } catch {}
     }
+    function aliveProgress() { /* progress is committed only after the complete file closes */ }
   };
 
   const worker = async () => {
-    for (;;) {
-      const entry = queue.shift();
-      if (!entry) return;
-      lastFile = entry.path;
-      const fh = await fileHandle(dir, entry.path, true);
-      // A file is considered complete only when its local size matches the manifest.
-      let localSize = -1;
-      try { localSize = (await fh.getFile()).size; }
-      catch (error) {
-        if (error?.name !== 'NotFoundError') throw error;
-        console.info('[storage] recreating missing local game file:', entry.path);
-      }
-      if (!force && localSize === entry.size) {
-        done += entry.size; doneFiles++; shown(); continue;
-      }
-      let ok = false, lastErr;
-      for (let attempt = 0; attempt < 6 && !ok; attempt++) {
-        try { await fetchInto(entry, fh); ok = true; }
+    try {
+      for (;;) {
+        if (stopWorkers) return;
+        const entry = queue.shift();
+        if (!entry) return;
+        lastFile = entry.path;
+        shown(true);
+        const fh = await fileHandle(dir, entry.path, true);
+        // A file is complete only when its local size matches the manifest.
+        let localSize = -1;
+        try { localSize = (await fh.getFile()).size; }
         catch (error) {
-          lastErr = error;
-          if (attempt < 5) await sleep(400 * (attempt + 1));
+          if (error?.name !== 'NotFoundError') throw error;
+          console.info('[storage] recreating missing local game file:', entry.path);
         }
+        if (!force && localSize === entry.size) {
+          done += entry.size; doneFiles++; shown();
+          continue;
+        }
+        let ok = false, lastErr;
+        for (let attempt = 0; attempt < 5 && !ok; attempt++) {
+          try {
+            await fetchInto(entry, fh);
+            ok = true;
+          } catch (error) {
+            lastErr = error;
+            const statusCode = Number(error?.status);
+            const permanentHttpError = statusCode >= 400 && statusCode < 500 &&
+              ![408, 409, 425, 429].includes(statusCode);
+            if (permanentHttpError || attempt === 4) break;
+            await sleep(700 * (attempt + 1));
+          }
+        }
+        if (!ok) {
+          stopWorkers = true;
+          throw new Error(`Download failed at ${entry.path} (${lastErr?.message || 'network/storage error'}). Your completed files are preserved; reload to retry only incomplete files.`);
+        }
+        done += entry.size;
+        doneFiles++;
+        shown();
       }
-      if (!ok) throw new Error(`Download failed at ${entry.path} (${lastErr?.message || 'network error'}). Reload the page to resume completed files.`);
-      done += entry.size;
-      doneFiles++;
-      shown();
+    } catch (error) {
+      stopWorkers = true;
+      throw error;
     }
   };
 
-  const workers = Array.from({ length: Math.min(DL_CONCURRENCY, list.length) }, () => worker());
-  await Promise.all(workers);
+  // Wait for every active worker to stop before reporting a failure. Promise.all rejects
+  // immediately and can leave other writers running in the background after the UI fails.
+  const results = await Promise.allSettled(
+    Array.from({ length: Math.min(DL_CONCURRENCY, list.length) }, () => worker())
+  );
+  const failed = results.find((result) => result.status === 'rejected');
+  if (failed) throw failed.reason;
   shown(true);
+  if (doneFiles !== list.length || done !== total) {
+    throw new Error(`Game file verification did not finish: ${doneFiles}/${list.length} files, ${done}/${total} bytes.`);
+  }
   const signature = list.map((entry) => entry.path + ':' + entry.size).sort().join('\n');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signature));
   const fingerprint = [...new Uint8Array(digest)].slice(0, 6).map((byte) => byte.toString(16).padStart(2, '0')).join('');
