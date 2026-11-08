@@ -73,6 +73,7 @@ jobs:
           # Project Pages is served below /igi2977/. Prefix only local root-relative
           # references in this generated copy; preserve external URLs and SEO metadata.
           quote_root = re.compile(r"""(["'])/(?!/)(?=[A-Za-z0-9_.~-])""")
+          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
           html = quote_root.sub(r"\1/igi2977/", html)
           html = re.sub(r"""((?:href|src|action|poster)=["'])/(["'])""", r"\1/igi2977/\2", html, flags=re.I)
           html = css_root.sub(r"\1/igi2977/", html)
@@ -80,7 +81,6 @@ jobs:
 
           # Rewrite remaining local root paths in the copied scripts, styles and manifests.
           extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
-          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
           for path in Path("_site").rglob("*"):
               if path == html_path or not path.is_file() or path.suffix.lower() not in extensions:
                   continue
