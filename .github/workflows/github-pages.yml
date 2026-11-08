@@ -61,24 +61,24 @@ jobs:
               css_path = Path("_site") / name
               if not css_path.is_file():
                   raise SystemExit(f"Required homepage stylesheet is missing: {css_path}")
-              css = css_path.read_text(encoding="utf-8").replace("</style", "<\\/style")
+              css = css_path.read_text(encoding="utf-8").replace("</style", "<\/style")
               inlined.add(name)
-              return f'<style data-inline-source="{name}">\\n{css}\\n</style>'
+              return f'<style data-inline-source="{name}">\n{css}\n</style>'
 
-          html = re.sub(r"<link\\b[^>]*>", inline_site_css, html, flags=re.I)
+          html = re.sub(r"<link\b[^>]*>", inline_site_css, html, flags=re.I)
           missing_css = css_names - inlined
           if missing_css:
               raise SystemExit("Homepage CSS was not inlined: " + ", ".join(sorted(missing_css)))
 
           # Project Pages is served below /igi2977/. Prefix only local root-relative
           # references in this generated copy; preserve external URLs and SEO metadata.
-          quote_root = re.compile(r"""(["'\\x60])/(?!/)""")
-          html = quote_root.sub(r"\\1/igi2977/", html)
+          quote_root = re.compile(r"""(["'])/(?!/)""")
+          html = quote_root.sub(r"\1/igi2977/", html)
           html_path.write_text(html, encoding="utf-8")
 
           # Rewrite remaining local root paths in the copied scripts, styles and manifests.
           extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
-          css_root = re.compile(r"""(url\\(\\s*)/(?!/)""")
+          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
           for path in Path("_site").rglob("*"):
               if path == html_path or not path.is_file() or path.suffix.lower() not in extensions:
                   continue
@@ -86,8 +86,8 @@ jobs:
                   source = path.read_text(encoding="utf-8")
               except UnicodeDecodeError:
                   continue
-              updated = quote_root.sub(r"\\1/igi2977/", source)
-              updated = css_root.sub(r"\\1/igi2977/", updated)
+              updated = quote_root.sub(r"\1/igi2977/", source)
+              updated = css_root.sub(r"\1/igi2977/", updated)
               if updated != source:
                   path.write_text(updated, encoding="utf-8")
 
