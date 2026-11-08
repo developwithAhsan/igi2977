@@ -21,29 +21,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare static site
+      - name: Prepare complete static frontend
         run: |
           mkdir -p _site
           rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-          # Mirror the existing web assets at the project site root.
+          # The production homepage is the root index.html. Its client-side game files live in web/.
           cp -a web/. _site/
           git show HEAD:index.html > _site/index.html
           touch _site/.nojekyll
-          # GitHub project Pages is served below /igi2977/.
-          find _site -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.webmanifest' \) -print0 | while IFS= read -r -d '' file; do
-            sed -i \
-              -e 's|="/web/|="/igi2977/web/|g' \
-              -e "s|='/web/|='/igi2977/web/|g" \
-              -e 's|url(/web/|url(/igi2977/web/|g' \
-              -e 's|="/logo.png|="/igi2977/logo.png|g' \
-              -e 's|="/site.webmanifest|="/igi2977/site.webmanifest|g' \
-              -e 's|="/og-project-igi.png|="/igi2977/og-project-igi.png|g' \
-              "$file"
-          done
 
-      # Pages must be enabled once in repository Settings by an owner.
-      # Do not ask GITHUB_TOKEN to create the Pages site; that API call is
-      # blocked for this integration on repositories where Pages is not enabled.
+          # GitHub project Pages is hosted under /igi2977/, not the domain root.
+          # Rewrite only local root-relative URLs in the generated copy. Absolute external
+          # URLs (https://...), canonical/SEO URLs, and the repository source stay unchanged.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
+          quote_root = re.compile(r"""(["'`])/(?!/)""")
+          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
+
+          for path in Path("_site").rglob("*"):
+              if not path.is_file() or path.suffix.lower() not in extensions:
+                  continue
+              try:
+                  source = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = quote_root.sub(r"\1/igi2977/", source)
+              updated = css_root.sub(r"\1/igi2977/", updated)
+              if updated != source:
+                  path.write_text(updated, encoding="utf-8")
+          PY
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
