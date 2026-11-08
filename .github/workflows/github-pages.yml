@@ -38,7 +38,7 @@ jobs:
           import re
 
           extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
-          quote_root = re.compile(r"""(["'`])/(?!/)""")
+          quote_root = re.compile(r"""(["'\`])/(?![/'\`"])""")
           css_root = re.compile(r"""(url\(\s*)/(?!/)""")
 
           for path in Path("_site").rglob("*"):
