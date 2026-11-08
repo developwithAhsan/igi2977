@@ -97,7 +97,7 @@ jobs:
                   raise SystemExit(f"Required homepage stylesheet is missing: {css_path}")
               css = css_path.read_text(encoding="utf-8").replace("</style", "<\\/style")
               inlined.add(name)
-              return f'<style data-inline-source="{name}">\\n{css}\\n</style>'
+              return f'<style data-inline-source="{name}">\n{css}\n</style>'
 
           html = re.sub(r"<link\b[^>]*>", inline_site_css, html, flags=re.I)
           missing_css = css_names - inlined
@@ -110,9 +110,9 @@ jobs:
               if not base_path:
                   return source
               quote_root = re.compile(r"""(["'])/(?!/)(?!igi2977/)(?=[A-Za-z0-9_.~-])""")
-              css_root = re.compile(r"""(url\\(\\s*)/(?!/)""")
+              css_root = re.compile(r"""(url\(\s*)/(?!/)""")
               source = quote_root.sub(lambda m: m.group(1) + base_path + "/", source)
-              source = re.sub(r"""((?:href|src|action|poster)=["'])/(")""", lambda m: m.group(1) + base_path + "/" + m.group(2), source, flags=re.I)
+              source = re.sub(r"""((?:href|src|action|poster)=["'])/(["'])""", lambda m: m.group(1) + base_path + "/" + m.group(2), source, flags=re.I)
               source = css_root.sub(lambda m: m.group(1) + base_path + "/", source)
               return source
 
