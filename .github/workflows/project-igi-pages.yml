@@ -57,8 +57,8 @@ jobs:
           blogs = site / "blogs"
           if (blogs / "index.html").is_file():
               blog_route = site / "blog"
-    blog_route.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(blogs / "index.html", blog_route / "index.html")
+              blog_route.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(blogs / "index.html", blog_route / "index.html")
               for page in blogs.glob("*.html"):
                   if page.name == "index.html":
                       continue
@@ -112,6 +112,7 @@ jobs:
               quote_root = re.compile(r"""(["'])/(?!/)(?!igi2977/)(?=[A-Za-z0-9_.~-])""")
               css_root = re.compile(r"""(url\\(\\s*)/(?!/)""")
               source = quote_root.sub(lambda m: m.group(1) + base_path + "/", source)
+              source = re.sub(r"""((?:href|src|action|poster)=["'])/(")""", lambda m: m.group(1) + base_path + "/" + m.group(2), source, flags=re.I)
               source = css_root.sub(lambda m: m.group(1) + base_path + "/", source)
               return source
 
