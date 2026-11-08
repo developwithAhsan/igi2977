@@ -56,7 +56,9 @@ jobs:
 
           blogs = site / "blogs"
           if (blogs / "index.html").is_file():
-              shutil.copy2(blogs / "index.html", site / "blog" / "index.html")
+              blog_route = site / "blog"
+    blog_route.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(blogs / "index.html", blog_route / "index.html")
               for page in blogs.glob("*.html"):
                   if page.name == "index.html":
                       continue
@@ -97,7 +99,7 @@ jobs:
               inlined.add(name)
               return f'<style data-inline-source="{name}">\\n{css}\\n</style>'
 
-          html = re.sub(r"<link\\b[^>]*>", inline_site_css, html, flags=re.I)
+          html = re.sub(r"<link\b[^>]*>", inline_site_css, html, flags=re.I)
           missing_css = css_names - inlined
           if missing_css:
               raise SystemExit("Homepage CSS was not inlined: " + ", ".join(sorted(missing_css)))
