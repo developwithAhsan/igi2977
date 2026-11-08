@@ -25,12 +25,11 @@ jobs:
         run: |
           mkdir -p _site
           rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-          # The current homepage expects several web/ assets at the site root; mirror them there too.
+          # Mirror the existing web assets at the project site root.
           cp -a web/. _site/
           git show HEAD:index.html > _site/index.html
           touch _site/.nojekyll
-          # GitHub project pages live under /igi2977/, unlike the original root domain.
-          # Adjust only the generated copy; repository source files remain unchanged.
+          # GitHub project Pages is served below /igi2977/.
           find _site -type f \( -name '*.html' -o -name '*.js' -o -name '*.css' -o -name '*.webmanifest' \) -print0 | while IFS= read -r -d '' file; do
             sed -i \
               -e 's|="/web/|="/igi2977/web/|g' \
@@ -42,10 +41,11 @@ jobs:
               "$file"
           done
 
+      # Pages must be enabled once in repository Settings by an owner.
+      # Do not ask GITHUB_TOKEN to create the Pages site; that API call is
+      # blocked for this integration on repositories where Pages is not enabled.
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
