@@ -74,6 +74,8 @@ jobs:
           # references in this generated copy; preserve external URLs and SEO metadata.
           quote_root = re.compile(r"""(["'])/(?!/)(?=[A-Za-z0-9_.~-])""")
           html = quote_root.sub(r"\1/igi2977/", html)
+          html = re.sub(r"""((?:href|src|action|poster)=["'])/(["'])""", r"\1/igi2977/\2", html, flags=re.I)
+          html = css_root.sub(r"\1/igi2977/", html)
           html_path.write_text(html, encoding="utf-8")
 
           # Rewrite remaining local root paths in the copied scripts, styles and manifests.
