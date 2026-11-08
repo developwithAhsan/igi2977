@@ -21,26 +21,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare homepage and runtime assets
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare static website
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p _site
           rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
-
-          # Add the browser runtime from web/, but never overwrite root-level site files.
-          # In particular, web/redesign.css is an older/different file than root redesign.css.
+          # Copy browser runtime and page files without overwriting the newer root homepage/CSS.
           rsync -a --ignore-existing web/ _site/
-          git show HEAD:index.html > _site/index.html
           touch _site/.nojekyll
 
-          # Build one self-contained homepage HTML with the exact root CSS used in development.
-          # External game/runtime scripts remain separate files and are copied from web/ above.
           python3 - <<'PY'
           from pathlib import Path
           from urllib.parse import urlsplit
           import re
+          import shutil
 
-          html_path = Path("_site/index.html")
-          html = html_path.read_text(encoding="utf-8")
+          site = Path("_site")
+          home = site / "index.html"
+          if not home.is_file():
+              raise SystemExit("Root index.html is missing.")
+
+          # Make extensionless routes work on GitHub Pages (which is static-only).
+          # Keep the original .html files too, so existing direct links continue to work.
+          for page in site.glob("*.html"):
+              if page.name in {"index.html", "404.html"}:
+                  continue
+              route = site / page.stem / "index.html"
+              route.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(page, route)
+
+          blogs = site / "blogs"
+          if (blogs / "index.html").is_file():
+              shutil.copy2(blogs / "index.html", site / "blog" / "index.html")
+              for page in blogs.glob("*.html"):
+                  if page.name == "index.html":
+                      continue
+                  route = site / "blog" / page.stem / "index.html"
+                  route.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(page, route)
+
+          # The repository has a custom-domain CNAME. On that domain assets belong
+          # at "/", not "/igi2977/". Use the project subpath only as a fallback
+          # if the CNAME file is ever removed.
+          cname = site / "CNAME"
+          base_path = "" if cname.is_file() and cname.read_text(encoding="utf-8").strip() else "/igi2977"
+
+          # Inline the exact current root homepage styles so the homepage cannot
+          # lose its layout because a stylesheet URL fails during the first load.
+          html = home.read_text(encoding="utf-8")
           css_names = {"redesign.css", "igi-theme.css", "home-embed.css"}
           inlined = set()
 
@@ -58,56 +90,62 @@ jobs:
                   return ""
               if "stylesheet" not in rel_value:
                   return tag
-              css_path = Path("_site") / name
+              css_path = site / name
               if not css_path.is_file():
                   raise SystemExit(f"Required homepage stylesheet is missing: {css_path}")
-              css = css_path.read_text(encoding="utf-8").replace("</style", "<\/style")
+              css = css_path.read_text(encoding="utf-8").replace("</style", "<\\/style")
               inlined.add(name)
-              return f'<style data-inline-source="{name}">\n{css}\n</style>'
+              return f'<style data-inline-source="{name}">\\n{css}\\n</style>'
 
-          html = re.sub(r"<link\b[^>]*>", inline_site_css, html, flags=re.I)
+          html = re.sub(r"<link\\b[^>]*>", inline_site_css, html, flags=re.I)
           missing_css = css_names - inlined
           if missing_css:
               raise SystemExit("Homepage CSS was not inlined: " + ", ".join(sorted(missing_css)))
 
-          # Project Pages is served below /igi2977/. Prefix only local root-relative
-          # references in this generated copy; preserve external URLs and SEO metadata.
-          quote_root = re.compile(r"""(["'])/(?!/)(?=[A-Za-z0-9_.~-])""")
-          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
-          html = quote_root.sub(r"\1/igi2977/", html)
-          html = re.sub(r"""((?:href|src|action|poster)=["'])/(["'])""", r"\1/igi2977/\2", html, flags=re.I)
-          html = css_root.sub(r"\1/igi2977/", html)
-          html_path.write_text(html, encoding="utf-8")
+          # Rewrite only local root-relative URLs in the generated copy when using
+          # the github.io project URL. Absolute SEO/canonical URLs stay untouched.
+          def apply_base(source):
+              if not base_path:
+                  return source
+              quote_root = re.compile(r"""(["'])/(?!/)(?!igi2977/)(?=[A-Za-z0-9_.~-])""")
+              css_root = re.compile(r"""(url\\(\\s*)/(?!/)""")
+              source = quote_root.sub(lambda m: m.group(1) + base_path + "/", source)
+              source = css_root.sub(lambda m: m.group(1) + base_path + "/", source)
+              return source
 
-          # Rewrite remaining local root paths in the copied scripts, styles and manifests.
-          extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
-          for path in Path("_site").rglob("*"):
-              if path == html_path or not path.is_file() or path.suffix.lower() not in extensions:
+          home.write_text(apply_base(html), encoding="utf-8")
+
+          # Rewrite other static HTML/CSS/JS/manifest/XML files in the output copy.
+          text_exts = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
+          for file in site.rglob("*"):
+              if not file.is_file() or file == home or file.suffix.lower() not in text_exts:
                   continue
               try:
-                  source = path.read_text(encoding="utf-8")
+                  source = file.read_text(encoding="utf-8")
               except UnicodeDecodeError:
                   continue
-              updated = quote_root.sub(r"\1/igi2977/", source)
-              updated = css_root.sub(r"\1/igi2977/", updated)
+              updated = apply_base(source)
               if updated != source:
-                  path.write_text(updated, encoding="utf-8")
+                  file.write_text(updated, encoding="utf-8")
 
-          # Fail the build rather than publish a page with missing visible UI/runtime assets.
           required = [
-              "_site/index.html", "_site/logo.png", "_site/loader.js",
-              "_site/controls.js", "_site/touch.js", "_site/netplay.js",
-              "_site/redesign-ui.js", "_site/web/game-source.js"
+              "index.html", "logo.png", "loader.js", "controls.js", "touch.js",
+              "netplay.js", "redesign-ui.js", "web/game-source.js",
+              "build/recomp.js", "build/recomp.wasm",
+              "about/index.html", "play/index.html", "controls/index.html",
+              "faq/index.html", "blog/index.html", ".nojekyll"
           ]
-          missing = [item for item in required if not Path(item).is_file()]
+          missing = [name for name in required if not (site / name).is_file()]
           if missing:
-              raise SystemExit("Required homepage assets missing: " + ", ".join(missing))
-          print("Homepage CSS embedded:", ", ".join(sorted(inlined)))
-          print("Static homepage and runtime asset checks passed.")
-          PY
+              raise SystemExit("Required Pages files missing: " + ", ".join(missing))
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+          if (site / "build/recomp.wasm").stat().st_size < 1024:
+              raise SystemExit("build/recomp.wasm is unexpectedly small.")
+
+          print("Custom domain base path:", "root" if not base_path else base_path)
+          print("Homepage CSS embedded:", ", ".join(sorted(inlined)))
+          print("Static page routes and game runtime files verified.")
+          PY
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
