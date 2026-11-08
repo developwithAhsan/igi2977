@@ -1,0 +1,126 @@
+name: Deploy Project IGI to GitHub Pages
+
+on:
+  push:
+    branches: ["redesign-oct30"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare homepage and runtime assets
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='_site' ./ _site/
+
+          # Add the browser runtime from web/, but never overwrite root-level site files.
+          # In particular, web/redesign.css is an older/different file than root redesign.css.
+          rsync -a --ignore-existing web/ _site/
+          git show HEAD:index.html > _site/index.html
+          touch _site/.nojekyll
+
+          # Build one self-contained homepage HTML with the exact root CSS used in development.
+          # External game/runtime scripts remain separate files and are copied from web/ above.
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import urlsplit
+          import re
+
+          html_path = Path("_site/index.html")
+          html = html_path.read_text(encoding="utf-8")
+          css_names = {"redesign.css", "igi-theme.css", "home-embed.css"}
+          inlined = set()
+
+          def inline_site_css(match):
+              tag = match.group(0)
+              href = re.search(r"""href\s*=\s*["']([^"']+)["']""", tag, re.I)
+              rel = re.search(r"""rel\s*=\s*["']([^"']+)["']""", tag, re.I)
+              if not href or not rel:
+                  return tag
+              name = Path(urlsplit(href.group(1)).path).name
+              if name not in css_names:
+                  return tag
+              rel_value = rel.group(1).lower()
+              if "preload" in rel_value:
+                  return ""
+              if "stylesheet" not in rel_value:
+                  return tag
+              css_path = Path("_site") / name
+              if not css_path.is_file():
+                  raise SystemExit(f"Required homepage stylesheet is missing: {css_path}")
+              css = css_path.read_text(encoding="utf-8").replace("</style", "<\/style")
+              inlined.add(name)
+              return f'<style data-inline-source="{name}">\n{css}\n</style>'
+
+          html = re.sub(r"<link\b[^>]*>", inline_site_css, html, flags=re.I)
+          missing_css = css_names - inlined
+          if missing_css:
+              raise SystemExit("Homepage CSS was not inlined: " + ", ".join(sorted(missing_css)))
+
+          # Project Pages is served below /igi2977/. Prefix only local root-relative
+          # references in this generated copy; preserve external URLs and SEO metadata.
+          quote_root = re.compile(r"""(["'])/(?!/)(?=[A-Za-z0-9_.~-])""")
+          css_root = re.compile(r"""(url\(\s*)/(?!/)""")
+          html = quote_root.sub(r"\1/igi2977/", html)
+          html = re.sub(r"""((?:href|src|action|poster)=["'])/(["'])""", r"\1/igi2977/\2", html, flags=re.I)
+          html = css_root.sub(r"\1/igi2977/", html)
+          html_path.write_text(html, encoding="utf-8")
+
+          # Rewrite remaining local root paths in the copied scripts, styles and manifests.
+          extensions = {".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest", ".xml"}
+          for path in Path("_site").rglob("*"):
+              if path == html_path or not path.is_file() or path.suffix.lower() not in extensions:
+                  continue
+              try:
+                  source = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = quote_root.sub(r"\1/igi2977/", source)
+              updated = css_root.sub(r"\1/igi2977/", updated)
+              if updated != source:
+                  path.write_text(updated, encoding="utf-8")
+
+          # Fail the build rather than publish a page with missing visible UI/runtime assets.
+          required = [
+              "_site/index.html", "_site/logo.png", "_site/loader.js",
+              "_site/controls.js", "_site/touch.js", "_site/netplay.js",
+              "_site/redesign-ui.js", "_site/web/game-source.js"
+          ]
+          missing = [item for item in required if not Path(item).is_file()]
+          if missing:
+              raise SystemExit("Required homepage assets missing: " + ", ".join(missing))
+          print("Homepage CSS embedded:", ", ".join(sorted(inlined)))
+          print("Static homepage and runtime asset checks passed.")
+          PY
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
