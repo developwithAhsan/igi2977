@@ -72,7 +72,7 @@ jobs:
 
           # Project Pages is served below /igi2977/. Prefix only local root-relative
           # references in this generated copy; preserve external URLs and SEO metadata.
-          quote_root = re.compile(r"""(["'])/(?!/)""")
+          quote_root = re.compile(r"""(["'])/(?!/)(?=[A-Za-z0-9_.~-])""")
           html = quote_root.sub(r"\1/igi2977/", html)
           html_path.write_text(html, encoding="utf-8")
 
