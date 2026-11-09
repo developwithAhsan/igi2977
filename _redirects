@@ -1,5 +1,4 @@
 # Internal rewrites: keep the public URLs and serve the matching HTML files from /web.
-/ play.html 200
 /play /web/play.html 200
 /play/ /web/play.html 200
 /controls /web/controls.html 200
