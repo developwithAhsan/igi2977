@@ -16,6 +16,9 @@ const PAGE_ROUTES = new Map([
 ]);
 
 const BLOG_ROUTES = new Map([
+  ["/blog/getting-started", "/web/blogs/getting-started.html"],
+  ["/blog/browser-performance", "/web/blogs/browser-performance.html"],
+  ["/blog/stealth-tactics", "/web/blogs/stealth-tactics.html"],
   ["/blogs/getting-started", "/web/blogs/getting-started.html"],
   ["/blogs/browser-performance", "/web/blogs/browser-performance.html"],
   ["/blogs/stealth-tactics", "/web/blogs/stealth-tactics.html"]
@@ -24,10 +27,9 @@ const BLOG_ROUTES = new Map([
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\\/+$/, "") || "/";
+    const path = url.pathname.replace(/\/+$/, "") || "/";
 
-    // Serve clean public URLs from their existing /web/*.html files.
-    // The browser URL and canonical URL remain unchanged (HTTP 200 internal rewrite).
+    // Internal 200 rewrite: keep the clean public URL and canonical unchanged.
     const target = PAGE_ROUTES.get(path) || BLOG_ROUTES.get(path);
     if (target) {
       const assetUrl = new URL(request.url);
@@ -35,8 +37,7 @@ export default {
       return env.ASSETS.fetch(new Request(assetUrl, request));
     }
 
-    // Keep the homepage, existing static files, game engine assets and all other
-    // paths untouched.
+    // Leave the homepage, static assets, game engine and all other paths untouched.
     return env.ASSETS.fetch(request);
   }
 };
