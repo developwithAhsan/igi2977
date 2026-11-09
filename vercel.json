@@ -3,7 +3,7 @@
   "trailingSlash": false,
   "redirects": [
     {
-      "source": "/web/redesign.css",
+      "source": "/redesign.css",
       "destination": "/redesign.css",
       "permanent": true
     },
@@ -24,12 +24,7 @@
       "statusCode": 301
     },
     {
-      "source": "/web/",
-      "destination": "/",
-      "statusCode": 301
-    },
-    {
-      "source": "/web/index.html",
+      "source": "/",
       "destination": "/",
       "statusCode": 301
     },
@@ -39,22 +34,27 @@
       "statusCode": 301
     },
     {
-      "source": "/web/play.html",
+      "source": "/index.html",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/play.html",
       "destination": "/play",
       "permanent": true
     },
     {
-      "source": "/web/about.html",
+      "source": "/about.html",
       "destination": "/about",
       "permanent": true
     },
     {
-      "source": "/web/contact.html",
+      "source": "/contact.html",
       "destination": "/contact",
       "permanent": true
     },
     {
-      "source": "/web/disclaimer.html",
+      "source": "/disclaimer.html",
       "destination": "/disclaimer",
       "permanent": true
     },
@@ -89,62 +89,62 @@
       "permanent": true
     },
     {
-      "source": "/web/blogs",
+      "source": "/blogs",
       "destination": "/blog",
       "permanent": true
     },
     {
-      "source": "/web/blogs/index.html",
+      "source": "/blogs/index.html",
       "destination": "/blog",
       "permanent": true
     },
     {
-      "source": "/web/blogs/:slug.html",
+      "source": "/blogs/:slug.html",
       "destination": "/blog/:slug",
       "permanent": true
     },
     {
-      "source": "/web/project-igi-1-online.html",
+      "source": "/project-igi-1-online.html",
       "destination": "/project-igi-1-online",
       "permanent": true
     },
     {
-      "source": "/web/project-igi-3-online-does-it-exist.html",
+      "source": "/project-igi-3-online-does-it-exist.html",
       "destination": "/project-igi-3-online-does-it-exist",
       "permanent": true
     },
     {
-      "source": "/web/is-project-igi-online-safe.html",
+      "source": "/is-project-igi-online-safe.html",
       "destination": "/is-project-igi-online-safe",
       "permanent": true
     },
     {
-      "source": "/web/controls.html",
+      "source": "/controls.html",
       "destination": "/controls",
       "permanent": true
     },
     {
-      "source": "/web/faq.html",
+      "source": "/faq.html",
       "destination": "/faq",
       "permanent": true
     },
     {
-      "source": "/web/privacy.html",
+      "source": "/privacy.html",
       "destination": "/privacy",
       "permanent": true
     },
     {
-      "source": "/web/terms.html",
+      "source": "/terms.html",
       "destination": "/terms",
       "permanent": true
     },
     {
-      "source": "/web/dmca.html",
+      "source": "/dmca.html",
       "destination": "/dmca",
       "permanent": true
     },
     {
-      "source": "/web/cookie-policy.html",
+      "source": "/cookie-policy.html",
       "destination": "/cookie-policy",
       "permanent": true
     },
@@ -161,107 +161,107 @@
     },
     {
       "source": "/disqus-frame",
-      "destination": "/web/disqus-frame.html"
+      "destination": "/disqus-frame.html"
     },
     {
       "source": "/play",
-      "destination": "/web/play.html"
+      "destination": "/play.html"
     },
     {
       "source": "/project-igi-1-online",
-      "destination": "/web/project-igi-1-online.html"
+      "destination": "/project-igi-1-online.html"
     },
     {
       "source": "/project-igi-3-online-does-it-exist",
-      "destination": "/web/project-igi-3-online-does-it-exist.html"
+      "destination": "/project-igi-3-online-does-it-exist.html"
     },
     {
       "source": "/is-project-igi-online-safe",
-      "destination": "/web/is-project-igi-online-safe.html"
+      "destination": "/is-project-igi-online-safe.html"
     },
     {
       "source": "/controls",
-      "destination": "/web/controls.html"
+      "destination": "/controls.html"
     },
     {
       "source": "/faq",
-      "destination": "/web/faq.html"
+      "destination": "/faq.html"
     },
     {
       "source": "/about",
-      "destination": "/web/about.html"
+      "destination": "/about.html"
     },
     {
       "source": "/contact",
-      "destination": "/web/contact.html"
+      "destination": "/contact.html"
     },
     {
       "source": "/disclaimer",
-      "destination": "/web/disclaimer.html"
+      "destination": "/disclaimer.html"
     },
     {
       "source": "/privacy",
-      "destination": "/web/privacy.html"
+      "destination": "/privacy.html"
     },
     {
       "source": "/terms",
-      "destination": "/web/terms.html"
+      "destination": "/terms.html"
     },
     {
       "source": "/dmca",
-      "destination": "/web/dmca.html"
+      "destination": "/dmca.html"
     },
     {
       "source": "/cookie-policy",
-      "destination": "/web/cookie-policy.html"
+      "destination": "/cookie-policy.html"
     },
     {
       "source": "/blog",
-      "destination": "/web/blogs/index.html"
+      "destination": "/blogs/index.html"
     },
     {
       "source": "/blog/:slug",
-      "destination": "/web/blogs/:slug.html"
+      "destination": "/blogs/:slug.html"
     },
     {
       "source": "/poster.jpg",
-      "destination": "/web/poster.jpg"
+      "destination": "/poster.jpg"
     },
     {
       "source": "/netplay.js",
-      "destination": "/web/netplay.js"
+      "destination": "/netplay.js"
     },
     {
       "source": "/controls.js",
-      "destination": "/web/controls.js"
+      "destination": "/controls.js"
     },
     {
       "source": "/touch.js",
-      "destination": "/web/touch.js"
+      "destination": "/touch.js"
     },
     {
       "source": "/loader.js",
-      "destination": "/web/loader.js"
+      "destination": "/loader.js"
     },
     {
       "source": "/redesign-ui.js",
-      "destination": "/web/redesign-ui.js"
+      "destination": "/redesign-ui.js"
     },
     {
       "source": "/audio-worklet.js",
-      "destination": "/web/audio-worklet.js"
+      "destination": "/audio-worklet.js"
     },
     {
       "source": "/ad.html",
-      "destination": "/web/ad.html"
+      "destination": "/ad.html"
     },
     {
       "source": "/build/:path*",
-      "destination": "/web/build/:path*"
+      "destination": "/build/:path*"
     },
     {
       "source": "/game/:path*",
-      "destination": "/web/game/:path*"
+      "destination": "/game/:path*"
     }
   ],
   "headers": [
@@ -317,7 +317,7 @@
       ]
     },
     {
-      "source": "/web/index.html",
+      "source": "/index.html",
       "headers": [
         {
           "key": "Cross-Origin-Opener-Policy",
@@ -334,7 +334,7 @@
       ]
     },
     {
-      "source": "/web/play.html",
+      "source": "/play.html",
       "headers": [
         {
           "key": "Cross-Origin-Opener-Policy",
@@ -364,7 +364,7 @@
       ]
     },
     {
-      "source": "/web/",
+      "source": "/",
       "headers": [
         {
           "key": "Cross-Origin-Opener-Policy",
@@ -412,7 +412,7 @@
       ]
     },
     {
-      "source": "/web/build/recomp.wasm",
+      "source": "/build/recomp.wasm",
       "headers": [
         {
           "key": "Content-Type",
@@ -434,7 +434,7 @@
       ]
     },
     {
-      "source": "/web/build/(.*)",
+      "source": "/build/(.*)",
       "headers": [
         {
           "key": "Cross-Origin-Resource-Policy",

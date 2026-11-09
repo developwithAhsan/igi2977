@@ -123,7 +123,7 @@ const fail = (error) => {
       fallback.className = 'home-import-actions';
       const note = document.createElement('p');
       note.className = 'home-import-help';
-      note.textContent = 'The matching browser engine is missing from this deployment. It needs both /web/build/recomp.js and /web/build/recomp.wasm, generated together with build_web.sh from the project source and a legally obtained game executable. The site cannot recreate these compiled files from the game folder download.';
+      note.textContent = 'The matching browser engine is missing from this deployment. It needs both /build/recomp.js and /build/recomp.wasm, generated together with build_web.sh from the project source and a legally obtained game executable. The site cannot recreate these compiled files from the game folder download.';
       fallback.append(note);
       $('status').insertAdjacentElement('afterend', fallback);
     }
@@ -1769,7 +1769,7 @@ async function run(session) {
   const script = document.createElement('script');
   // Load the files from their actual deployed location. This avoids a rewrite-dependent WASM URL
   // and makes Emscripten's scriptDirectory point at the matching recomp.wasm beside this script.
-  script.src = '/web/build/recomp.js?v=' + ENGINE_BUILD_VERSION;
+  script.src = '/build/recomp.js?v=' + ENGINE_BUILD_VERSION;
   await new Promise((resolve, reject) => {
     script.onload = () => {
       if (typeof createRecomp !== 'function') {
@@ -1778,12 +1778,12 @@ async function run(session) {
       }
       resolve();
     };
-    script.onerror = () => reject(new Error('The compiled game engine is missing or could not be loaded from /web/build/recomp.js. Imported game files are only the game data; the website also needs its generated recomp.js and matching WebAssembly file.'));
+    script.onerror = () => reject(new Error('The compiled game engine is missing or could not be loaded from /build/recomp.js. Imported game files are only the game data; the website also needs its generated recomp.js and matching WebAssembly file.'));
     document.head.appendChild(script);
   });
   const M = await createRecomp({
     arguments: ['/opfs/' + OPFS_DIR],
-    locateFile: (path, prefix) => path.endsWith('recomp.wasm') ? '/web/build/recomp.wasm?v=' + ENGINE_BUILD_VERSION : prefix + path,
+    locateFile: (path, prefix) => path.endsWith('recomp.wasm') ? '/build/recomp.wasm?v=' + ENGINE_BUILD_VERSION : prefix + path,
     print: (t) => console.log(t),
     printErr: (t) => console.error('[engine]', t),
     preRun: [(m) => {
