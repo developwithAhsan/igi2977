@@ -996,3 +996,15 @@ body.inner-page #sitefoot .legal-note a,body:not(.home-page) #sitefoot .legal-no
   body.inner-page #sitefoot.site-footer,body:not(.home-page) #sitefoot.site-footer{grid-template-columns:minmax(0,1fr)}
   body.inner-page #sitefoot.site-footer>*,body:not(.home-page) #sitefoot.site-footer>*{grid-column:1/-1}
 }
+
+
+/* Cloudflare/mobile scroll fix: let the document grow beyond the initial viewport.
+   The legacy launcher declared html/body height:100%, which clipped the redesigned
+   homepage's lower sections while the game stage itself remained visible. */
+html{height:auto!important;min-height:100%!important;overflow-x:hidden;overflow-y:auto}
+html body{height:auto!important;min-height:100vh!important;min-height:100svh!important;overflow-x:hidden!important;overflow-y:auto!important}
+body.home-page main#main-content{height:auto!important;min-height:0!important;overflow:visible!important;align-content:start!important}
+body.home-page #comments,body.home-page #igi-follow-promo,body.home-page #sitefoot{position:relative!important;clear:both!important;visibility:visible!important;opacity:1!important}
+body.home-page #comments{display:block!important;width:100%!important;max-width:1240px;margin:28px auto!important}
+body.home-page #disqus-frame{display:block!important;min-height:420px;width:100%!important}
+@media(max-width:800px){body.home-page main#main-content{padding-bottom:36px!important}body.home-page #comments{margin:18px auto!important}}
