@@ -90,7 +90,8 @@ async function proxyGameFile(request, pathname) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\\/+$/, "") || "/";
+    let path = url.pathname;
+    while (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
 
     if (path === "/igi-data" || path.startsWith(DATA_PREFIX)) {
       return proxyGameFile(request, path);
