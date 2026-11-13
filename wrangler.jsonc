@@ -10,7 +10,7 @@
     "directory": ".",
     "binding": "ASSETS",
     "run_worker_first": true,
-    "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
+    "html_handling": "none",
+    "not_found_handling": "none"
   }
 }
