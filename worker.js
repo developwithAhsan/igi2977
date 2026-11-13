@@ -5,9 +5,7 @@ const ROUTES = new Map([
   ["/controls", "/controls.html"],
   ["/faq", "/faq.html"],
   ["/about", "/about.html"],
-  ["/about-us", "/about.html"],
   ["/contact", "/contact.html"],
-  ["/contact-us", "/contact.html"],
   ["/privacy", "/privacy.html"],
   ["/terms", "/terms.html"],
   ["/dmca", "/dmca.html"],
@@ -15,10 +13,7 @@ const ROUTES = new Map([
   ["/cookie-policy", "/cookie-policy.html"],
 
   ["/blog", "/blogs/index.html"],
-  ["/blog/index.html", "/blogs/index.html"],
   ["/blogs", "/blogs/index.html"],
-  ["/about-us.html", "/about.html"],
-  ["/contact-us.html", "/contact.html"],
 
   ["/project-igi-1-online", "/project-igi-1-online.html"],
   ["/project-igi-3-online-does-it-exist", "/project-igi-3-online-does-it-exist.html"],
@@ -102,27 +97,8 @@ export default {
       return proxyGameFile(request, path);
     }
 
-    // A few older page templates still reference assets under /web/. Keep
-    // those asset URLs working, while all public page URLs stay at the root.
-    if (path.startsWith("/web/")) path = path.slice(4);
-
-    // Prefer explicit routes, then resolve any root-level /page URL to
-    // /page.html. Blog detail pages live physically in /blogs/*.html but
-    // are exposed as /blog/<slug> and /blogs/<slug>.
-    let target = ROUTES.get(path);
-    if (!target && path.startsWith("/blog/")) {
-      const slug = path.slice("/blog/".length);
-      target = "/blogs/" + (slug.endsWith(".html") ? slug : slug + ".html");
-    }
-    if (!target && path.startsWith("/blogs/")) {
-      const slug = path.slice("/blogs/".length);
-      target = "/blogs/" + (slug.endsWith(".html") ? slug : slug + ".html");
-    }
-    if (!target && path !== "/" && !path.endsWith(".html")) {
-      target = path + ".html";
-    }
+    const target = ROUTES.get(path);
     if (target) url.pathname = target;
-    else url.pathname = path;
 
     const response = await env.ASSETS.fetch(new Request(url, request));
 
