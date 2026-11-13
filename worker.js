@@ -1,6 +1,33 @@
-// Cloudflare Worker for Project IGI static assets and the same-origin game-file proxy.
-// Let Cloudflare's auto-trailing-slash HTML handling resolve ordinary .html pages.
-// Do not rewrite /page to /page.html here: that causes an HTML redirect loop.
+// Cloudflare Worker for Project IGI static pages and the same-origin game-file proxy.
+// html_handling is set to "none", so clean page routes are mapped to their .html files here.
+const ROUTES = new Map([
+  ["/play", "/play.html"],
+  ["/controls", "/controls.html"],
+  ["/faq", "/faq.html"],
+  ["/about", "/about.html"],
+  ["/about-us", "/about.html"],
+  ["/contact", "/contact.html"],
+  ["/contact-us", "/contact.html"],
+  ["/privacy", "/privacy.html"],
+  ["/terms", "/terms.html"],
+  ["/dmca", "/dmca.html"],
+  ["/disclaimer", "/disclaimer.html"],
+  ["/cookie-policy", "/cookie-policy.html"],
+  ["/blog", "/blogs/index.html"],
+  ["/blogs", "/blogs/index.html"],
+  ["/blog/index.html", "/blogs/index.html"],
+  ["/project-igi-1-online", "/project-igi-1-online.html"],
+  ["/project-igi-3-online-does-it-exist", "/project-igi-3-online-does-it-exist.html"],
+  ["/is-project-igi-online-safe", "/is-project-igi-online-safe.html"],
+  ["/disqus-frame", "/disqus-frame.html"],
+  ["/blog/getting-started", "/blogs/getting-started.html"],
+  ["/blog/browser-performance", "/blogs/browser-performance.html"],
+  ["/blog/stealth-tactics", "/blogs/stealth-tactics.html"],
+  ["/blogs/getting-started", "/blogs/getting-started.html"],
+  ["/blogs/browser-performance", "/blogs/browser-performance.html"],
+  ["/blogs/stealth-tactics", "/blogs/stealth-tactics.html"]
+]);
+
 const DATA_PREFIX = "/igi-data/";
 const DATA_ORIGIN = "https://igi.sagarinfosec.site";
 
@@ -42,25 +69,24 @@ async function proxyGameFile(request, pathname) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const originalPath = url.pathname;
-    if (originalPath === "/igi-data" || originalPath.startsWith(DATA_PREFIX)) {
-      return proxyGameFile(request, originalPath);
+    let path = url.pathname;
+    while (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+
+    if (path === "/igi-data" || path.startsWith(DATA_PREFIX)) {
+      return proxyGameFile(request, path);
     }
 
-    // Old templates reference /web/click-ad.js although the file is at the root.
-    // Strip only this legacy asset prefix; never rewrite page URLs to .html.
-    if (url.pathname.startsWith("/web/")) url.pathname = url.pathname.slice(4);
+    // Legacy asset links from a few templates point to /web/, while files are at root.
+    if (path.startsWith("/web/")) {
+      path = path.slice(4);
+      url.pathname = path;
+    }
 
-    // Aliases map to clean page paths; Cloudflare then resolves the .html asset.
-    let cleanPath = url.pathname;
-    while (cleanPath.length > 1 && cleanPath.endsWith("/")) cleanPath = cleanPath.slice(0, -1);
-    if (cleanPath === "/about-us") url.pathname = "/about";
-    if (cleanPath === "/contact-us") url.pathname = "/contact";
+    const target = ROUTES.get(path);
+    if (target) url.pathname = target;
 
     const response = await env.ASSETS.fetch(new Request(url, request));
-    let headerPath = url.pathname;
-    while (headerPath.length > 1 && headerPath.endsWith("/")) headerPath = headerPath.slice(0, -1);
-    if (headerPath === "/" || headerPath === "/index.html" || headerPath === "/play") {
+    if (path === "/" || path === "/index.html" || path === "/play" || path === "/play.html") {
       return withHeaders(response, {
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Embedder-Policy": "credentialless",
