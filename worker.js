@@ -13,7 +13,7 @@ function dataRequestPath(pathname) {
   let decoded;
   try { decoded = segments.map((part) => decodeURIComponent(part)); }
   catch { return null; }
-  if (decoded.some((part) => !part || part === "." || part === ".." || part.includes("/") || part.includes("\\\\"))) return null;
+  if (decoded.some((part) => !part || part === "." || part === ".." || part.includes("/") || part.includes(String.fromCharCode(92)))) return null;
   return "/" + decoded.map((part) => encodeURIComponent(part)).join("/");
 }
 
@@ -52,12 +52,14 @@ export default {
     if (url.pathname.startsWith("/web/")) url.pathname = url.pathname.slice(4);
 
     // Aliases map to clean page paths; Cloudflare then resolves the .html asset.
-    const cleanPath = url.pathname.replace(/\\/+$/, "") || "/";
+    let cleanPath = url.pathname;
+    while (cleanPath.length > 1 && cleanPath.endsWith("/")) cleanPath = cleanPath.slice(0, -1);
     if (cleanPath === "/about-us") url.pathname = "/about";
     if (cleanPath === "/contact-us") url.pathname = "/contact";
 
     const response = await env.ASSETS.fetch(new Request(url, request));
-    const headerPath = url.pathname.replace(/\\/+$/, "") || "/";
+    let headerPath = url.pathname;
+    while (headerPath.length > 1 && headerPath.endsWith("/")) headerPath = headerPath.slice(0, -1);
     if (headerPath === "/" || headerPath === "/index.html" || headerPath === "/play") {
       return withHeaders(response, {
         "Cross-Origin-Opener-Policy": "same-origin",
