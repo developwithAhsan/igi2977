@@ -2,6 +2,8 @@ const HOME_HTML = "\n<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=
 
 // Cloudflare Worker for Project IGI static pages and the same-origin game-file proxy.
 // html_handling is set to "none", so clean page routes are mapped to their .html files here.
+const SITEMAP_XML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n  <url><loc>https://project-igi.online/</loc></url>\n  <url><loc>https://project-igi.online/play</loc></url>\n  <url><loc>https://project-igi.online/project-igi-1-online</loc></url>\n  <url><loc>https://project-igi.online/project-igi-3-online-does-it-exist</loc></url>\n  <url><loc>https://project-igi.online/is-project-igi-online-safe</loc></url>\n  <url><loc>https://project-igi.online/controls</loc></url>\n  <url><loc>https://project-igi.online/faq</loc></url>\n  <url><loc>https://project-igi.online/about</loc></url>\n  <url><loc>https://project-igi.online/contact</loc></url>\n  <url><loc>https://project-igi.online/privacy</loc></url>\n  <url><loc>https://project-igi.online/terms</loc></url>\n  <url><loc>https://project-igi.online/dmca</loc></url>\n  <url><loc>https://project-igi.online/disclaimer</loc></url>\n  <url><loc>https://project-igi.online/cookie-policy</loc></url>\n  <url><loc>https://project-igi.online/blog</loc></url>\n  <url><loc>https://project-igi.online/blog/getting-started</loc></url>\n  <url><loc>https://project-igi.online/blog/stealth-tactics</loc></url>\n  <url><loc>https://project-igi.online/blog/browser-performance</loc></url>\n</urlset>";
+
 const ROUTES = new Map([
   ["/play", "/play.html"],
   ["/controls", "/controls.html"],
@@ -73,6 +75,22 @@ export default {
     const url = new URL(request.url);
     let path = url.pathname;
     while (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+
+    // Serve the canonical sitemap from the Worker so the live domain always
+    // exposes the current repository sitemap, even when the retained asset bundle is older.
+    if (path === "/sitemap.xml") {
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+      }
+      return new Response(request.method === "HEAD" ? null : SITEMAP_XML, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/xml; charset=utf-8",
+          "Cache-Control": "public, max-age=300, s-maxage=300",
+          "X-Content-Type-Options": "nosniff"
+        }
+      });
+    }
 
     // The currently attached asset snapshot does not expose the root index.html.
     // Serve the exact checked-in homepage source here, unchanged, while keeping all
